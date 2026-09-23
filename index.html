@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#991b1b">
+  <title>Meilan · Control de vida útil</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <span class="eyebrow">MEILAN</span>
+      <h1>Control de vida útil</h1>
+      <p>Escanea una etiqueta, valida la fecha y consulta la vida útil oficial.</p>
+    </div>
+    <span class="version">v0.1.0</span>
+  </header>
+
+  <main class="shell">
+    <section class="card camera-card">
+      <div class="section-title">
+        <div>
+          <h2>Escanear etiqueta</h2>
+          <p>La cámara intenta detectar PREP/PROD, fechas y horas. Corrige cualquier dato antes de validar.</p>
+        </div>
+        <span id="cameraStatus" class="pill neutral">Cámara lista</span>
+      </div>
+
+      <div class="camera-wrap">
+        <video id="video" playsinline autoplay muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <img id="preview" alt="Vista previa de la etiqueta" hidden>
+        <div class="scan-frame" aria-hidden="true"></div>
+      </div>
+
+      <div class="actions">
+        <button id="openCameraBtn" class="btn primary">Abrir cámara</button>
+        <button id="captureBtn" class="btn primary" disabled>Tomar foto y leer</button>
+        <label class="btn secondary file-btn">
+          Subir foto
+          <input id="fileInput" type="file" accept="image/*" capture="environment">
+        </label>
+        <button id="resetImageBtn" class="btn ghost" type="button">Limpiar foto</button>
+      </div>
+
+      <div id="ocrBox" class="ocr-box" hidden>
+        <div class="ocr-head">
+          <strong>Lectura automática</strong>
+          <span id="ocrProgress">0%</span>
+        </div>
+        <div class="progress"><span id="ocrProgressBar"></span></div>
+        <pre id="ocrText"></pre>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <div>
+          <h2>Datos de la etiqueta</h2>
+          <p>Si la escritura a mano no se reconoce bien, selecciona el producto y corrige la fecha u hora.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <label class="field span-2">
+          <span>Producto</span>
+          <select id="productSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Etapa</span>
+          <select id="stageSelect">
+            <option value="">Selecciona</option>
+            <option value="PREP">PREP</option>
+            <option value="PROD">PROD</option>
+            <option value="FR_FV">FR/FV</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Condición</span>
+          <select id="conditionSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Fecha de inicio</span>
+          <input id="startDate" type="date">
+        </label>
+
+        <label class="field">
+          <span>Hora de inicio</span>
+          <input id="startTime" type="time">
+        </label>
+
+        <label class="field">
+          <span>Fecha de vencimiento escrita</span>
+          <input id="writtenExpiryDate" type="date">
+        </label>
+
+        <label class="field">
+          <span>Hora de vencimiento escrita</span>
+          <input id="writtenExpiryTime" type="time">
+        </label>
+      </div>
+
+      <button id="calculateBtn" class="btn primary wide">Validar vida útil</button>
+    </section>
+
+    <section id="resultCard" class="card result-card" hidden>
+      <div class="result-top">
+        <div>
+          <span id="resultState" class="status-badge neutral">SIN CALCULAR</span>
+          <h2 id="resultProduct">Producto</h2>
+          <p id="resultRule"></p>
+        </div>
+        <div class="remaining">
+          <span>Tiempo restante</span>
+          <strong id="remainingText">—</strong>
+        </div>
+      </div>
+
+      <div class="result-grid">
+        <div class="metric"><span>Inicio</span><strong id="resultStart">—</strong></div>
+        <div class="metric"><span>Vencimiento oficial</span><strong id="resultOfficialExpiry">—</strong></div>
+        <div class="metric"><span>Vencimiento escrito</span><strong id="resultWrittenExpiry">—</strong></div>
+        <div class="metric"><span>Conservación</span><strong id="resultStorage">—</strong></div>
+      </div>
+
+      <div id="warningBox" class="warning" hidden></div>
+      <button id="saveHistoryBtn" class="btn secondary">Guardar revisión</button>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <div>
+          <h2>Historial del dispositivo</h2>
+          <p>Se guarda localmente en este navegador.</p>
+        </div>
+        <button id="clearHistoryBtn" class="btn ghost small">Borrar historial</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    Tabla base: Chile · actualización 28 de julio de 2026. La lectura automática debe verificarse antes de tomar decisiones sobre el producto.
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
