@@ -1,0 +1,10 @@
+{
+  "name":"Meilan · Control de vida útil",
+  "short_name":"Meilan",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f5f5f4",
+  "theme_color":"#991b1b",
+  "description":"Control de vida útil y validación de etiquetas de productos.",
+  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
