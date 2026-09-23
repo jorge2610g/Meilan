@@ -12,6 +12,16 @@
   "lang":"es",
   "categories":["utilities","business"],
   "prefer_related_applications":false,
+  "related_applications":[
+    {
+      "platform":"webapp",
+      "url":"https://jorge2610g.github.io/Meilan/manifest.webmanifest",
+      "id":"https://jorge2610g.github.io/Meilan/"
+    }
+  ],
+  "launch_handler":{
+    "client_mode":"navigate-existing"
+  },
   "icons":[
     {
       "src":"icon-192.png",
