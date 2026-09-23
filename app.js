@@ -126,7 +126,7 @@
   function ocrScore(text,confidence=0){
     const up=(text||"").toUpperCase();
     let s=(confidence||0)/12;
-    if(/\b(PROD|PREP|FECHA|HORA|VENC|INIC)\b/.test(up)) s+=12;
+    if(/\b(PROD|PREP|FECHA|HORA|VENC|INIC|FR|FB|FV)\b/.test(up)) s+=14;
     s+=([...(up.matchAll(/\b[0-3]?\d[\/.\-][01]?\d(?:[\/.\-]\d{2,4})?\b/g))].length)*8;
     s+=([...(up.matchAll(/\b(?:[01]?\d|2[0-3])[:.]?[0-5]\d\b/g))].length)*5;
     return s;
