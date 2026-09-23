@@ -16,7 +16,7 @@
       <h1>Control de vida útil</h1>
       <p>Escanea una etiqueta, valida la fecha y consulta la vida útil oficial.</p>
     </div>
-    <span class="version">v0.1.1</span>
+    <span class="version">v0.1.2</span>
   </header>
 
   <main class="shell">
@@ -24,7 +24,7 @@
       <div class="section-title">
         <div>
           <h2>Escanear etiqueta</h2>
-          <p>La cámara intenta detectar PREP/PROD, fechas y horas. Corrige cualquier dato antes de validar.</p>
+          <p>La cámara intenta leer FR, fecha de vencimiento superior, PREP/PROD, operario, fechas y horas. Corrige cualquier dato antes de validar.</p>
         </div>
         <span id="cameraStatus" class="pill neutral">Cámara lista</span>
       </div>
@@ -71,6 +71,16 @@
         </label>
 
         <label class="field">
+          <span>FR · Fecha de recepción</span>
+          <input id="receivedDate" type="date">
+        </label>
+
+        <label class="field">
+          <span>FB/FV · Vencimiento superior del producto</span>
+          <input id="factoryExpiryDate" type="date">
+        </label>
+
+        <label class="field">
           <span>Etapa</span>
           <select id="stageSelect">
             <option value="">Selecciona</option>
@@ -86,22 +96,27 @@
         </label>
 
         <label class="field">
-          <span>Fecha de inicio</span>
+          <span>Inicial del operario</span>
+          <input id="operatorInitial" type="text" maxlength="8" placeholder="Ej. D">
+        </label>
+
+        <label class="field">
+          <span>Fecha de inicio PREP/PROD</span>
           <input id="startDate" type="date">
         </label>
 
         <label class="field">
-          <span>Hora de inicio</span>
+          <span>Hora de inicio PREP/PROD</span>
           <input id="startTime" type="time">
         </label>
 
         <label class="field">
-          <span>Fecha de vencimiento escrita</span>
+          <span>F. VENC · Fecha de vencimiento PREP/PROD</span>
           <input id="writtenExpiryDate" type="date">
         </label>
 
         <label class="field">
-          <span>Hora de vencimiento escrita</span>
+          <span>Hora VENC · Vencimiento PREP/PROD</span>
           <input id="writtenExpiryTime" type="time">
         </label>
       </div>
@@ -123,9 +138,12 @@
       </div>
 
       <div class="result-grid">
-        <div class="metric"><span>Inicio</span><strong id="resultStart">—</strong></div>
+        <div class="metric"><span>FR · Recepción</span><strong id="resultReceived">—</strong></div>
+        <div class="metric"><span>FB/FV · Vencimiento superior</span><strong id="resultFactoryExpiry">—</strong></div>
+        <div class="metric"><span>Operario</span><strong id="resultOperator">—</strong></div>
+        <div class="metric"><span>Inicio PREP/PROD</span><strong id="resultStart">—</strong></div>
         <div class="metric"><span>Vencimiento oficial</span><strong id="resultOfficialExpiry">—</strong></div>
-        <div class="metric"><span>Vencimiento escrito</span><strong id="resultWrittenExpiry">—</strong></div>
+        <div class="metric"><span>Vencimiento escrito PREP/PROD</span><strong id="resultWrittenExpiry">—</strong></div>
         <div class="metric"><span>Conservación</span><strong id="resultStorage">—</strong></div>
       </div>
 
