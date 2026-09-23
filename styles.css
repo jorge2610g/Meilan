@@ -57,3 +57,12 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
   .wizard-step h3{font-size:19px}
   .rule-head{display:grid}
 }
+
+/* PWA v0.4.0 */
+.top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.install-btn{background:#fff;color:#991b1b;padding:8px 12px;border-radius:999px}
+.install-btn:hover{background:#fff7f7}
+@media(max-width:700px){
+  .top-actions{justify-content:flex-start}
+  .topbar{align-items:flex-start}
+}
