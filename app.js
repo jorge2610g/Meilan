@@ -6,10 +6,12 @@
     openCameraBtn:$("openCameraBtn"), captureBtn:$("captureBtn"), fileInput:$("fileInput"),
     resetImageBtn:$("resetImageBtn"), ocrBox:$("ocrBox"), ocrProgress:$("ocrProgress"),
     ocrProgressBar:$("ocrProgressBar"), ocrText:$("ocrText"), product:$("productSelect"),
+    receivedDate:$("receivedDate"), factoryExpiryDate:$("factoryExpiryDate"), operatorInitial:$("operatorInitial"),
     stage:$("stageSelect"), condition:$("conditionSelect"), startDate:$("startDate"),
     startTime:$("startTime"), expDate:$("writtenExpiryDate"), expTime:$("writtenExpiryTime"),
     calculate:$("calculateBtn"), result:$("resultCard"), state:$("resultState"),
     resultProduct:$("resultProduct"), resultRule:$("resultRule"), remaining:$("remainingText"),
+    resultReceived:$("resultReceived"), resultFactoryExpiry:$("resultFactoryExpiry"), resultOperator:$("resultOperator"),
     resultStart:$("resultStart"), official:$("resultOfficialExpiry"), written:$("resultWrittenExpiry"),
     storage:$("resultStorage"), warning:$("warningBox"), save:$("saveHistoryBtn"),
     history:$("historyList"), clearHistory:$("clearHistoryBtn")
@@ -165,9 +167,12 @@
       setProgress(100);
       const parsed=parseOCR(best.text);
       const summary=[];
+      if(parsed.received) summary.push("FR recepción: "+String(parsed.received.d).padStart(2,"0")+"/"+String(parsed.received.mo).padStart(2,"0")+"/"+parsed.received.y);
+      if(parsed.factoryExpiry) summary.push("FB/FV vencimiento superior: "+String(parsed.factoryExpiry.d).padStart(2,"0")+"/"+String(parsed.factoryExpiry.mo).padStart(2,"0")+"/"+parsed.factoryExpiry.y);
       if(parsed.stage) summary.push("Etapa: "+parsed.stage);
-      if(parsed.dates.length) summary.push("Fechas: "+parsed.dates.map(x=>String(x.d).padStart(2,"0")+"/"+String(x.mo).padStart(2,"0")+"/"+x.y).join(" · "));
-      if(parsed.times.length) summary.push("Horas: "+parsed.times.join(" · "));
+      if(parsed.operator) summary.push("Operario: "+parsed.operator);
+      if(parsed.dates.length) summary.push("PREP/PROD fechas: "+parsed.dates.map(x=>String(x.d).padStart(2,"0")+"/"+String(x.mo).padStart(2,"0")+"/"+x.y).join(" · "));
+      if(parsed.times.length) summary.push("PREP/PROD horas: "+parsed.times.join(" · "));
       els.ocrText.textContent=
         (summary.length?summary.join("\n")+"\n\n":"")+
         "Mejor lectura: "+best.label+" · confianza "+Math.round(best.confidence)+"%\n"+
@@ -197,23 +202,59 @@
     let stage="";
     if(/\bPR[O0]D\b/.test(up)){stage="PROD";els.stage.value="PROD";refreshConditions();}
     else if(/\bPREP\b/.test(up)){stage="PREP";els.stage.value="PREP";refreshConditions();}
-    else if(/FR\s*\/?\s*FV/.test(up)){stage="FR_FV";els.stage.value="FR_FV";refreshConditions();}
 
-    const dates=[...up.matchAll(/\b([0-3]?\d)\s*[\/.\-]\s*([01]?\d)(?:\s*[\/.\-]\s*(\d{2,4}))?\b/g)]
-      .map(m=>({d:+m[1],mo:+m[2],y:m[3]?+m[3]:new Date().getFullYear()}))
+    const fullPattern=/\b([0-3]?\d)\s*(?:[\/.\-]|\s)\s*([01]?\d)\s*(?:[\/.\-]|\s)\s*(\d{2,4})\b/g;
+    const fullDates=[...up.matchAll(fullPattern)]
+      .map(m=>({d:+m[1],mo:+m[2],y:+m[3],raw:m[0]}))
+      .filter(x=>x.d>=1&&x.d<=31&&x.mo>=1&&x.mo<=12)
+      .map(x=>{if(x.y<100)x.y+=2000;return x;});
+
+    let year=fullDates[0]?.y || new Date().getFullYear();
+    if(fullDates[0]) els.receivedDate.value=toISODate(fullDates[0]);
+    if(fullDates[1]) els.factoryExpiryDate.value=toISODate(fullDates[1]);
+
+    let residual=up;
+    fullDates.forEach(x=>{residual=residual.replace(x.raw," ");});
+
+    const shortPattern=/\b([0-3]?\d)\s*[\/.\-]\s*([01]?\d)\b/g;
+    const shortDates=[...residual.matchAll(shortPattern)]
+      .map(m=>({d:+m[1],mo:+m[2],y:year,raw:m[0]}))
       .filter(x=>x.d>=1&&x.d<=31&&x.mo>=1&&x.mo<=12);
-    const times=[...up.matchAll(/\b([01]?\d|2[0-3])\s*[:.]?\s*([0-5]\d)\b/g)]
-      .map(m=>m[1].padStart(2,"0")+":"+m[2]);
 
-    const uniqueDates=[];
-    dates.forEach(x=>{if(!uniqueDates.some(y=>y.d===x.d&&y.mo===x.mo&&y.y===x.y))uniqueDates.push(x)});
-    const uniqueTimes=[...new Set(times)];
+    const uniqueShort=[];
+    shortDates.forEach(x=>{if(!uniqueShort.some(y=>y.d===x.d&&y.mo===x.mo))uniqueShort.push(x);});
+    if(uniqueShort[0]) els.startDate.value=toISODate(uniqueShort[0]);
+    if(uniqueShort[1]) els.expDate.value=toISODate(uniqueShort[1]);
 
-    if(uniqueDates[0]) els.startDate.value=toISODate(uniqueDates[0]);
-    if(uniqueDates[1]) els.expDate.value=toISODate(uniqueDates[1]);
+    uniqueShort.forEach(x=>{residual=residual.replace(x.raw," ");});
+
+    const timeMatches=[];
+    for(const m of residual.matchAll(/\b([01]?\d|2[0-3])\s*[:.]\s*([0-5]\d)\b/g)){
+      timeMatches.push(m[1].padStart(2,"0")+":"+m[2]);
+    }
+    for(const m of residual.matchAll(/\b([01]?\d|2[0-3])\s+([0-5]\d)\b/g)){
+      timeMatches.push(m[1].padStart(2,"0")+":"+m[2]);
+    }
+    for(const m of residual.matchAll(/\b([01]\d|2[0-3])([0-5]\d)\b/g)){
+      timeMatches.push(m[1]+":"+m[2]);
+    }
+    const uniqueTimes=[...new Set(timeMatches)];
     if(uniqueTimes[0]) els.startTime.value=uniqueTimes[0];
     if(uniqueTimes[1]) els.expTime.value=uniqueTimes[1];
-    return {stage,dates:uniqueDates.slice(0,2),times:uniqueTimes.slice(0,2)};
+
+    const operatorMatch=residual.match(/\b(?:INIC|INICIO)\s*[:\-]?\s*([A-Z]{1,3})\b/);
+    if(operatorMatch && !["PRO","PREP","PROD","FR","FV","FB"].includes(operatorMatch[1])){
+      els.operatorInitial.value=operatorMatch[1];
+    }
+
+    return {
+      stage,
+      received:fullDates[0]||null,
+      factoryExpiry:fullDates[1]||null,
+      dates:uniqueShort.slice(0,2),
+      times:uniqueTimes.slice(0,2),
+      operator:els.operatorInitial.value||""
+    };
   }
 
   function toISODate(x){
@@ -254,12 +295,15 @@
     const p=D.products[pIdx],cond=D.conditions[cIdx],rule=parseRule(p.r[cIdx]);
     if(!rule){alert("No existe una regla oficial para esa combinación.");return;}
 
+    const received=dt(els.receivedDate.value,"00:00");
+    const factoryExpiry=dt(els.factoryExpiryDate.value,"23:59");
     const start=dt(els.startDate.value,els.startTime.value);
     const written=dt(els.expDate.value,els.expTime.value,"23:59");
     let official=null;
     if(rule.type==="use"){
-      if(!written){alert("Este producto usa la fecha del envase/etiqueta. Ingresa la fecha de vencimiento escrita.");return;}
-      official=new Date(written);
+      const useBy=factoryExpiry||written;
+      if(!useBy){alert("Este producto usa la fecha del envase/etiqueta. Ingresa FB/FV o la fecha de vencimiento escrita.");return;}
+      official=new Date(useBy);
     }else{
       if(!start){alert("Ingresa la fecha de inicio para calcular la vida útil.");return;}
       official=new Date(start);
@@ -277,6 +321,9 @@
     els.resultProduct.textContent=p.n;
     els.resultRule.textContent=cond.label+" · Vida útil: "+rule.text;
     els.remaining.textContent=humanDiff(remaining);
+    els.resultReceived.textContent=received?formatDT(received):"No informada";
+    els.resultFactoryExpiry.textContent=factoryExpiry?formatDT(factoryExpiry):"No informada";
+    els.resultOperator.textContent=els.operatorInitial.value.trim()||"No informado";
     els.resultStart.textContent=start?formatDT(start):"No aplica / no informada";
     els.official.textContent=formatDT(official);
     els.written.textContent=written?formatDT(written):"No informada";
@@ -296,7 +343,7 @@
       else els.warning.textContent+=" "+extra.textContent;
     }
 
-    lastResult={at:new Date().toISOString(),product:p.n,condition:cond.label,rule:rule.text,start:start?start.toISOString():null,official:official.toISOString(),written:written?written.toISOString():null,state,remainingMs:remaining};
+    lastResult={at:new Date().toISOString(),product:p.n,condition:cond.label,rule:rule.text,received:received?received.toISOString():null,factoryExpiry:factoryExpiry?factoryExpiry.toISOString():null,operator:els.operatorInitial.value.trim()||null,start:start?start.toISOString():null,official:official.toISOString(),written:written?written.toISOString():null,state,remainingMs:remaining};
     els.result.scrollIntoView({behavior:"smooth",block:"start"});
   }
 
