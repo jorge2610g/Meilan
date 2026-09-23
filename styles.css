@@ -66,3 +66,5 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
   .top-actions{justify-content:flex-start}
   .topbar{align-items:flex-start}
 }
+
+.top-actions a{text-decoration:none}
