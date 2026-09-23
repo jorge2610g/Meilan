@@ -73,18 +73,107 @@
     els.captureBtn.disabled=true; els.cameraStatus.textContent="Foto cargada";els.cameraStatus.className="pill ok";
   }
 
+  function loadImage(src){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(img);
+      img.onerror=reject;
+      img.src=src;
+    });
+  }
+
+  function prepareOCRImage(img,rotation=0){
+    const source=document.createElement("canvas");
+    const sw=img.naturalWidth||img.width, sh=img.naturalHeight||img.height;
+    const sx=Math.round(sw*.14), sy=Math.round(sh*.14), cw=Math.round(sw*.72), ch=Math.round(sh*.72);
+    source.width=cw; source.height=ch;
+    source.getContext("2d").drawImage(img,sx,sy,cw,ch,0,0,cw,ch);
+
+    const rotated=document.createElement("canvas");
+    const quarter=Math.abs(rotation)%180===90;
+    rotated.width=quarter?ch:cw; rotated.height=quarter?cw:ch;
+    const rctx=rotated.getContext("2d");
+    rctx.translate(rotated.width/2,rotated.height/2);
+    rctx.rotate(rotation*Math.PI/180);
+    rctx.drawImage(source,-cw/2,-ch/2);
+
+    const out=document.createElement("canvas");
+    const scale=Math.min(2.2,Math.max(1.25,1800/Math.max(rotated.width,rotated.height)));
+    out.width=Math.round(rotated.width*scale);out.height=Math.round(rotated.height*scale);
+    const ctx=out.getContext("2d");
+    ctx.drawImage(rotated,0,0,out.width,out.height);
+
+    const im=ctx.getImageData(0,0,out.width,out.height), d=im.data;
+    let sum=0;
+    for(let i=0;i<d.length;i+=4){
+      const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+      sum+=g;
+    }
+    const avg=sum/(d.length/4);
+    const threshold=Math.max(115,Math.min(205,avg*.90));
+    for(let i=0;i<d.length;i+=4){
+      let g=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+      g=(g-128)*1.55+128;
+      const v=g>threshold?255:0;
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+    ctx.putImageData(im,0,0);
+    return out.toDataURL("image/png");
+  }
+
+  function ocrScore(text,confidence=0){
+    const up=(text||"").toUpperCase();
+    let s=(confidence||0)/12;
+    if(/\b(PROD|PREP|FECHA|HORA|VENC|INIC)\b/.test(up)) s+=12;
+    s+=([...(up.matchAll(/\b[0-3]?\d[\/.\-][01]?\d(?:[\/.\-]\d{2,4})?\b/g))].length)*8;
+    s+=([...(up.matchAll(/\b(?:[01]?\d|2[0-3])[:.]?[0-5]\d\b/g))].length)*5;
+    return s;
+  }
+
+  async function runOneOCR(src,label,progressBase){
+    els.ocrText.textContent="Analizando "+label+"…";
+    const result=await Tesseract.recognize(src,"eng",{
+      logger:m=>{
+        if(m.status==="recognizing text"){
+          const p=progressBase+Math.round((m.progress||0)*28);
+          setProgress(Math.min(96,p));
+        }
+      }
+    });
+    const text=(result.data.text||"").trim();
+    return {text,confidence:result.data.confidence||0,score:ocrScore(text,result.data.confidence||0),label};
+  }
+
   async function runOCR(src){
     if(!window.Tesseract){alert("El lector OCR no pudo cargar. Puedes ingresar los datos manualmente.");return;}
-    els.ocrBox.hidden=false;els.ocrText.textContent="Leyendo etiqueta…";setProgress(1);
+    els.ocrBox.hidden=false;els.ocrText.textContent="Preparando etiqueta…";setProgress(1);
     try{
-      const result=await Tesseract.recognize(src,"eng",{
-        logger:m=>{ if(m.status==="recognizing text") setProgress(Math.round((m.progress||0)*100)); }
-      });
-      const text=(result.data.text||"").trim();
-      els.ocrText.textContent=text||"No se detectó texto con suficiente claridad.";
+      const img=await loadImage(src);
+      const attempts=[
+        {rot:0,label:"orientación original"},
+        {rot:90,label:"rotación 90°"},
+        {rot:270,label:"rotación 270°"}
+      ];
+      let best={text:"",score:-1,confidence:0,label:""};
+      for(let i=0;i<attempts.length;i++){
+        const a=attempts[i];
+        const prepared=prepareOCRImage(img,a.rot);
+        const r=await runOneOCR(prepared,a.label,4+i*30);
+        if(r.score>best.score) best=r;
+        if(best.score>=34) break;
+      }
       setProgress(100);
-      parseOCR(text);
+      const parsed=parseOCR(best.text);
+      const summary=[];
+      if(parsed.stage) summary.push("Etapa: "+parsed.stage);
+      if(parsed.dates.length) summary.push("Fechas: "+parsed.dates.map(x=>String(x.d).padStart(2,"0")+"/"+String(x.mo).padStart(2,"0")+"/"+x.y).join(" · "));
+      if(parsed.times.length) summary.push("Horas: "+parsed.times.join(" · "));
+      els.ocrText.textContent=
+        (summary.length?summary.join("\n")+"\n\n":"")+
+        "Mejor lectura: "+best.label+" · confianza "+Math.round(best.confidence)+"%\n"+
+        (best.text||"No se detectó texto con suficiente claridad. Corrige los datos manualmente.");
     }catch(e){
+      console.error(e);
       els.ocrText.textContent="No se pudo completar la lectura automática. Corrige los datos manualmente.";
       setProgress(0);
     }
@@ -92,20 +181,39 @@
 
   function setProgress(n){els.ocrProgress.textContent=n+"%";els.ocrProgressBar.style.width=n+"%";}
 
-  function parseOCR(text){
-    const up=text.toUpperCase().replace(/[|]/g,"/");
-    if(/\bPROD\b/.test(up)){els.stage.value="PROD";refreshConditions();}
-    else if(/\bPREP\b/.test(up)){els.stage.value="PREP";refreshConditions();}
-    else if(/FR\s*\/?\s*FV/.test(up)){els.stage.value="FR_FV";refreshConditions();}
+  function normalizeOCRText(text){
+    return (text||"")
+      .toUpperCase()
+      .replace(/[|]/g,"/")
+      .replace(/[Oo](?=\d)/g,"0")
+      .replace(/(?<=\d)[Oo]/g,"0")
+      .replace(/[Il](?=\d)/g,"1")
+      .replace(/(?<=\d)[Il]/g,"1")
+      .replace(/\s+/g," ");
+  }
 
-    const dates=[...up.matchAll(/\b([0-3]?\d)[\/.\-]([01]?\d)(?:[\/.\-](\d{2,4}))?\b/g)]
+  function parseOCR(text){
+    const up=normalizeOCRText(text);
+    let stage="";
+    if(/\bPR[O0]D\b/.test(up)){stage="PROD";els.stage.value="PROD";refreshConditions();}
+    else if(/\bPREP\b/.test(up)){stage="PREP";els.stage.value="PREP";refreshConditions();}
+    else if(/FR\s*\/?\s*FV/.test(up)){stage="FR_FV";els.stage.value="FR_FV";refreshConditions();}
+
+    const dates=[...up.matchAll(/\b([0-3]?\d)\s*[\/.\-]\s*([01]?\d)(?:\s*[\/.\-]\s*(\d{2,4}))?\b/g)]
       .map(m=>({d:+m[1],mo:+m[2],y:m[3]?+m[3]:new Date().getFullYear()}))
       .filter(x=>x.d>=1&&x.d<=31&&x.mo>=1&&x.mo<=12);
-    const times=[...up.matchAll(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g)].map(m=>m[1].padStart(2,"0")+":"+m[2]);
-    if(dates[0]) els.startDate.value=toISODate(dates[0]);
-    if(dates[1]) els.expDate.value=toISODate(dates[1]);
-    if(times[0]) els.startTime.value=times[0];
-    if(times[1]) els.expTime.value=times[1];
+    const times=[...up.matchAll(/\b([01]?\d|2[0-3])\s*[:.]?\s*([0-5]\d)\b/g)]
+      .map(m=>m[1].padStart(2,"0")+":"+m[2]);
+
+    const uniqueDates=[];
+    dates.forEach(x=>{if(!uniqueDates.some(y=>y.d===x.d&&y.mo===x.mo&&y.y===x.y))uniqueDates.push(x)});
+    const uniqueTimes=[...new Set(times)];
+
+    if(uniqueDates[0]) els.startDate.value=toISODate(uniqueDates[0]);
+    if(uniqueDates[1]) els.expDate.value=toISODate(uniqueDates[1]);
+    if(uniqueTimes[0]) els.startTime.value=uniqueTimes[0];
+    if(uniqueTimes[1]) els.expTime.value=uniqueTimes[1];
+    return {stage,dates:uniqueDates.slice(0,2),times:uniqueTimes.slice(0,2)};
   }
 
   function toISODate(x){
