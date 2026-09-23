@@ -10,51 +10,30 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.5.0">
+  <link rel="stylesheet" href="styles.css?v=0.5.1">
 </head>
 <body>
 <header class="topbar">
   <div>
     <span class="eyebrow">MEILAN</span>
     <h1>Calculadora de vida útil</h1>
-    <p>Usa FR/FB o PREP/PROD de forma independiente. Si quieres, puedes continuar de una sección a la otra.</p>
+    <p>FR/FB y PREP/PROD son cálculos completamente independientes. Cada sección selecciona su propio producto.</p>
   </div>
   <div class="top-actions">
     <span id="networkBadge" class="pill ok">En línea</span>
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.5.0</span>
+    <span class="version">v0.5.1</span>
   </div>
 </header>
 
 <main class="shell">
-  <section class="card section-selector">
-    <div class="section-title">
-      <div>
-        <h2>¿Qué quieres calcular?</h2>
-        <p>Cada sección funciona por separado. No necesitas completar una para usar la otra.</p>
-      </div>
-    </div>
-    <div class="mode-grid">
-      <button id="showFrfbBtn" class="mode-card active">
-        <span class="mode-code">FR / FB</span>
-        <strong>Recepción y vencimiento</strong>
-        <small>Producto cerrado en cámara fría.</small>
-      </button>
-      <button id="showPreprodBtn" class="mode-card">
-        <span class="mode-code">PREP / PROD</span>
-        <strong>Preparación o producción</strong>
-        <small>Calcula desde la fecha y hora del proceso.</small>
-      </button>
-    </div>
-  </section>
-
   <section id="frfbSection" class="card calculator-section">
     <div class="section-title">
       <div>
         <span class="section-kicker">SECCIÓN 1</span>
         <h2>FR / FB · Recepción</h2>
-        <p>Ingresa la fecha de recibimiento. El sistema revisa la vida útil del producto cerrado en cámara fría.</p>
+        <p>Cálculo independiente. Selecciona aquí el producto y la fecha de recibimiento; no depende de PREP/PROD.</p>
       </div>
     </div>
 
@@ -101,18 +80,17 @@
       </div>
 
       <div class="actions">
-        <button id="frSaveBtn" class="btn secondary">Guardar</button>
-        <button id="continueToProcessBtn" class="btn primary grow">Continuar a PREP / PROD</button>
+        <button id="frSaveBtn" class="btn secondary">Guardar cálculo FR / FB</button>
       </div>
     </div>
   </section>
 
-  <section id="preprodSection" class="card calculator-section" hidden>
+  <section id="preprodSection" class="card calculator-section">
     <div class="section-title">
       <div>
         <span class="section-kicker">SECCIÓN 2</span>
         <h2>PREP / PROD</h2>
-        <p>Esta sección funciona sola. Selecciona el producto y calcula preparación o producción.</p>
+        <p>Cálculo independiente. Selecciona aquí el producto y luego elige Preparación o Producción.</p>
       </div>
     </div>
 
@@ -229,7 +207,7 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="data.js?v=0.5.0"></script>
-<script src="app.js?v=0.5.0"></script>
+<script src="data.js?v=0.5.1"></script>
+<script src="app.js?v=0.5.1"></script>
 </body>
 </html>
