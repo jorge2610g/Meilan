@@ -32,10 +32,10 @@
   }
 
   function refreshConditions(){
-    const idx = Number(els.product.value);
     const stage = els.stage.value;
     els.condition.innerHTML='<option value="">Selecciona una condición</option>';
-    if(!Number.isInteger(idx)) return;
+    if(els.product.value==="") return;
+    const idx = Number(els.product.value);
     const p=D.products[idx];
     D.conditions.forEach((c,i)=>{
       if(p.r[i] && (!stage || c.stage===stage)){
@@ -141,8 +141,8 @@
   }
 
   function calculate(){
+    if(els.product.value===""||els.condition.value===""){alert("Selecciona el producto y la condición.");return;}
     const pIdx=Number(els.product.value),cIdx=Number(els.condition.value);
-    if(!Number.isInteger(pIdx)||!Number.isInteger(cIdx)){alert("Selecciona el producto y la condición.");return;}
     const p=D.products[pIdx],cond=D.conditions[cIdx],rule=parseRule(p.r[cIdx]);
     if(!rule){alert("No existe una regla oficial para esa combinación.");return;}
 
