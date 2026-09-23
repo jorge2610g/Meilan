@@ -50,7 +50,8 @@
     history:$("historyList"),
     clearHistory:$("clearHistoryBtn"),
     networkBadge:$("networkBadge"),
-    installPwaBtn:$("installPwaBtn")
+    installPwaBtn:$("installPwaBtn"),
+    openPwaBtn:$("openPwaBtn")
   };
 
   const state = {
@@ -469,6 +470,49 @@
     els.networkBadge.className="pill "+(online?"ok":"soon");
   }
 
+  function isStandalone(){
+    return window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true;
+  }
+
+  function setInstalledUi(installed){
+    if(isStandalone()){
+      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
+      if(els.openPwaBtn) els.openPwaBtn.hidden=true;
+      return;
+    }
+
+    if(installed){
+      localStorage.setItem("meilan_pwa_installed","1");
+      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
+      if(els.openPwaBtn) els.openPwaBtn.hidden=false;
+    }else{
+      localStorage.removeItem("meilan_pwa_installed");
+      if(els.installPwaBtn) els.installPwaBtn.hidden=false;
+      if(els.openPwaBtn) els.openPwaBtn.hidden=true;
+    }
+  }
+
+  async function detectInstalledPwa(){
+    if(isStandalone()){
+      setInstalledUi(true);
+      return true;
+    }
+
+    if("getInstalledRelatedApps" in navigator){
+      try{
+        const apps=await navigator.getInstalledRelatedApps();
+        const installed=Array.isArray(apps) && apps.some(app=>app.platform==="webapp");
+        setInstalledUi(installed);
+        return installed;
+      }catch{}
+    }
+
+    const saved=localStorage.getItem("meilan_pwa_installed")==="1";
+    setInstalledUi(saved);
+    return saved;
+  }
+
   function setupPwaInstall(){
     updateNetworkStatus();
     window.addEventListener("online",updateNetworkStatus);
@@ -477,24 +521,47 @@
     window.addEventListener("beforeinstallprompt",event=>{
       event.preventDefault();
       deferredInstallPrompt=event;
-      if(els.installPwaBtn) els.installPwaBtn.hidden=false;
+      localStorage.removeItem("meilan_pwa_installed");
+      if(!isStandalone()){
+        if(els.installPwaBtn) els.installPwaBtn.hidden=false;
+        if(els.openPwaBtn) els.openPwaBtn.hidden=true;
+      }
     });
 
     window.addEventListener("appinstalled",()=>{
       deferredInstallPrompt=null;
-      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
+      setInstalledUi(true);
     });
 
     els.installPwaBtn?.addEventListener("click",async()=>{
-      if(!deferredInstallPrompt){
-        alert("Si ya instalaste Meilan, ábrela desde el icono de tu teléfono. Si no aparece el botón de instalación, usa el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.");
+      if(isStandalone()){
+        els.installPwaBtn.hidden=true;
         return;
       }
-      deferredInstallPrompt.prompt();
-      try{ await deferredInstallPrompt.userChoice; }catch{}
+
+      if(!deferredInstallPrompt){
+        const installed=await detectInstalledPwa();
+        if(installed) return;
+        alert("Chrome todavía no habilitó el instalador automático. Espera unos segundos y vuelve a tocar “Instalar”. Si no aparece, abre el menú de Chrome y elige “Instalar app”.");
+        return;
+      }
+
+      const promptEvent=deferredInstallPrompt;
       deferredInstallPrompt=null;
-      els.installPwaBtn.hidden=true;
+      const result=await promptEvent.prompt();
+      if(result?.outcome==="accepted"){
+        localStorage.setItem("meilan_pwa_installed","1");
+        setInstalledUi(true);
+      }else{
+        setInstalledUi(false);
+      }
     });
+
+    els.openPwaBtn?.addEventListener("click",()=>{
+      localStorage.setItem("meilan_pwa_installed","1");
+    });
+
+    detectInstalledPwa();
   }
 
   els.validateReceipt.addEventListener("click",validateReceipt);
