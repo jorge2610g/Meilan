@@ -87,3 +87,7 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
   .mode-grid{grid-template-columns:1fr}
   .mode-card{padding:15px}
 }
+
+.reload-btn{background:#fff;color:#7f1d1d;border:1px solid rgba(255,255,255,.55);padding:8px 12px;border-radius:999px}
+.reload-btn:disabled{opacity:.65}
+@media(max-width:700px){.reload-btn{padding:8px 10px}}
