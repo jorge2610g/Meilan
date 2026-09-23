@@ -1,10 +1,28 @@
 {
-  "name":"Meilan · Control de vida útil",
+  "id":"./",
+  "name":"Meilan · Calculadora de vida útil",
   "short_name":"Meilan",
+  "description":"Calcula fechas de vencimiento de recepción, preparación y producción según la tabla de vida útil.",
   "start_url":"./",
+  "scope":"./",
   "display":"standalone",
+  "orientation":"portrait-primary",
   "background_color":"#f5f5f4",
   "theme_color":"#991b1b",
-  "description":"Control de vida útil y validación de etiquetas de productos.",
-  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "lang":"es",
+  "categories":["utilities","business"],
+  "icons":[
+    {
+      "src":"icon.svg",
+      "sizes":"any",
+      "type":"image/svg+xml",
+      "purpose":"any"
+    },
+    {
+      "src":"icon.svg",
+      "sizes":"any",
+      "type":"image/svg+xml",
+      "purpose":"maskable"
+    }
+  ]
 }
