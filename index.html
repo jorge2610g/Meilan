@@ -10,121 +10,169 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <span class="eyebrow">MEILAN</span>
-      <h1>Control de vida útil</h1>
-      <p>Escanea una etiqueta, valida la fecha y consulta la vida útil oficial.</p>
+<header class="topbar">
+  <div>
+    <span class="eyebrow">MEILAN</span>
+    <h1>Control de vida útil</h1>
+    <p>Flujo guiado según la tabla oficial: recepción → cerrado en cámara fría → PREP/PROD → vencimiento.</p>
+  </div>
+  <span class="version">v0.2.0</span>
+</header>
+
+<main class="shell">
+  <section class="card wizard-card">
+    <div class="section-title">
+      <div>
+        <h2>Proceso guiado</h2>
+        <p>El sistema consulta la regla exacta del producto. Si la celda de la planilla está vacía, te pedirá el dato manualmente.</p>
+      </div>
+      <span id="flowBadge" class="pill neutral">Paso 1 de 4</span>
     </div>
-    <span class="version">v0.1.2</span>
-  </header>
 
-  <main class="shell">
-    <section class="card camera-card">
-      <div class="section-title">
-        <div>
-          <h2>Escanear etiqueta</h2>
-          <p>La cámara intenta leer FR, fecha de vencimiento superior, PREP/PROD, operario, fechas y horas. Corrige cualquier dato antes de validar.</p>
-        </div>
-        <span id="cameraStatus" class="pill neutral">Cámara lista</span>
-      </div>
+    <div class="steps" aria-label="Progreso">
+      <div class="step-dot active" data-step-dot="1"><b>1</b><span>Recepción</span></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step-dot="2"><b>2</b><span>Destino</span></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step-dot="3"><b>3</b><span>PREP/PROD</span></div>
+      <div class="step-line"></div>
+      <div class="step-dot" data-step-dot="4"><b>4</b><span>Resultado</span></div>
+    </div>
 
-      <div class="camera-wrap">
-        <video id="video" playsinline autoplay muted></video>
-        <canvas id="canvas" hidden></canvas>
-        <img id="preview" alt="Vista previa de la etiqueta" hidden>
-        <div class="scan-frame" aria-hidden="true"></div>
-      </div>
-
-      <div class="actions">
-        <button id="openCameraBtn" class="btn primary">Abrir cámara</button>
-        <button id="captureBtn" class="btn primary" disabled>Tomar foto y leer</button>
-        <label class="btn secondary file-btn">
-          Subir foto
-          <input id="fileInput" type="file" accept="image/*" capture="environment">
-        </label>
-        <button id="resetImageBtn" class="btn ghost" type="button">Limpiar foto</button>
-      </div>
-
-      <div id="ocrBox" class="ocr-box" hidden>
-        <div class="ocr-head">
-          <strong>Lectura automática</strong>
-          <span id="ocrProgress">0%</span>
-        </div>
-        <div class="progress"><span id="ocrProgressBar"></span></div>
-        <pre id="ocrText"></pre>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="section-title">
-        <div>
-          <h2>Datos de la etiqueta</h2>
-          <p>Si la escritura a mano no se reconoce bien, selecciona el producto y corrige la fecha u hora.</p>
-        </div>
-      </div>
+    <div class="wizard-step active" data-step="1">
+      <h3>1. Producto y fecha de recepción</h3>
+      <p class="helper">Selecciona el producto y registra la fecha en que se recibió en tienda (FR).</p>
 
       <div class="form-grid">
         <label class="field span-2">
           <span>Producto</span>
           <select id="productSelect"></select>
         </label>
-
         <label class="field">
-          <span>FR · Fecha de recepción</span>
+          <span>FR · Fecha de recepción / entrega</span>
           <input id="receivedDate" type="date">
         </label>
+      </div>
 
-        <label class="field">
-          <span>FB/FV · Vencimiento superior del producto</span>
-          <input id="factoryExpiryDate" type="date">
-        </label>
+      <button id="validateReceiptBtn" class="btn primary wide">Revisar regla de cerrado en cámara fría</button>
 
-        <label class="field">
-          <span>Etapa</span>
-          <select id="stageSelect">
-            <option value="">Selecciona</option>
-            <option value="PREP">PREP</option>
-            <option value="PROD">PROD</option>
-            <option value="FR_FV">FR/FV</option>
-          </select>
-        </label>
+      <div id="closedRuleBox" class="rule-box" hidden>
+        <div class="rule-head">
+          <span class="rule-kicker">CERRADO · FR/FV · EN CÁMARA FRÍA</span>
+          <strong id="closedRuleTitle">—</strong>
+        </div>
+        <p id="closedRuleText"></p>
+        <div id="closedExpiryAuto" class="calculated-date" hidden>
+          <span>Vencimiento calculado</span>
+          <strong id="closedExpiryAutoValue">—</strong>
+        </div>
 
-        <label class="field">
-          <span>Condición</span>
-          <select id="conditionSelect"></select>
-        </label>
+        <div id="closedManualWrap" class="manual-box" hidden>
+          <label class="field">
+            <span id="closedManualLabel">Fecha de vencimiento</span>
+            <input id="closedExpiryDate" type="date">
+          </label>
+          <p id="closedManualHelp" class="helper"></p>
+          <button id="confirmClosedBtn" class="btn primary">Confirmar vencimiento</button>
+        </div>
 
+        <button id="continueStageBtn" class="btn secondary wide" hidden>Continuar</button>
+      </div>
+    </div>
+
+    <div class="wizard-step" data-step="2">
+      <h3>2. ¿El Meilan es para preparación o producción?</h3>
+      <p class="helper">Selecciona el destino. El sistema consultará la columna correspondiente de la planilla.</p>
+      <div class="choice-grid">
+        <button class="choice-card" data-stage-choice="PREP">
+          <span class="choice-icon">PREP</span>
+          <strong>Preparación</strong>
+          <small>Consulta “Abierto · PREP · En cámara fría / preparado”.</small>
+        </button>
+        <button class="choice-card" data-stage-choice="PROD">
+          <span class="choice-icon">PROD</span>
+          <strong>Producción</strong>
+          <small>Consulta “Abierto · PROD · Línea producción”.</small>
+        </button>
+      </div>
+      <button class="btn ghost wide" data-back="1">Volver</button>
+    </div>
+
+    <div class="wizard-step" data-step="3">
+      <h3 id="processHeading">3. Datos del proceso</h3>
+      <p id="processHelper" class="helper"></p>
+
+      <div id="processRuleBox" class="rule-box">
+        <div class="rule-head">
+          <span id="processRuleKicker" class="rule-kicker">REGLA</span>
+          <strong id="processRuleTitle">—</strong>
+        </div>
+        <p id="processRuleText"></p>
+      </div>
+
+      <div class="form-grid">
         <label class="field">
           <span>Inicial del operario</span>
           <input id="operatorInitial" type="text" maxlength="8" placeholder="Ej. D">
         </label>
-
         <label class="field">
-          <span>Fecha de inicio PREP/PROD</span>
-          <input id="startDate" type="date">
+          <span id="processDateLabel">Fecha</span>
+          <input id="processDate" type="date">
         </label>
-
         <label class="field">
-          <span>Hora de inicio PREP/PROD</span>
-          <input id="startTime" type="time">
-        </label>
-
-        <label class="field">
-          <span>F. VENC · Fecha de vencimiento PREP/PROD</span>
-          <input id="writtenExpiryDate" type="date">
-        </label>
-
-        <label class="field">
-          <span>Hora VENC · Vencimiento PREP/PROD</span>
-          <input id="writtenExpiryTime" type="time">
+          <span id="processTimeLabel">Hora</span>
+          <input id="processTime" type="time">
         </label>
       </div>
 
-      <button id="calculateBtn" class="btn primary wide">Validar vida útil</button>
-    </section>
+      <div id="manualLifeWrap" class="manual-box" hidden>
+        <strong>La planilla no tiene una vida útil cargada para este producto en esta etapa.</strong>
+        <p class="helper">Ingresa manualmente cuánto dura el producto desde la fecha/hora del proceso.</p>
+        <div class="form-grid compact-grid">
+          <label class="field">
+            <span>Vida útil manual</span>
+            <input id="manualLifeAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej. 2">
+          </label>
+          <label class="field">
+            <span>Unidad</span>
+            <select id="manualLifeUnit">
+              <option value="d">Días</option>
+              <option value="h">Horas</option>
+            </select>
+          </label>
+        </div>
+      </div>
 
-    <section id="resultCard" class="card result-card" hidden>
+      <div id="useByProcessBox" class="manual-box" hidden>
+        <strong>La planilla indica “Uso por fecha”.</strong>
+        <p class="helper">Se usará la fecha de vencimiento del producto definida en el paso de recepción.</p>
+        <div class="calculated-date">
+          <span>Fecha que se usará</span>
+          <strong id="useByProcessValue">—</strong>
+        </div>
+      </div>
+
+      <div class="optional-box">
+        <strong>Dato escrito en el Meilan (opcional, para comparar)</strong>
+        <div class="form-grid compact-grid">
+          <label class="field">
+            <span>F. VENC escrita</span>
+            <input id="writtenExpiryDate" type="date">
+          </label>
+          <label class="field">
+            <span>Hora VENC escrita</span>
+            <input id="writtenExpiryTime" type="time">
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" data-back="2">Volver</button>
+        <button id="calculateBtn" class="btn primary grow">Calcular vencimiento</button>
+      </div>
+    </div>
+
+    <div class="wizard-step" data-step="4">
       <div class="result-top">
         <div>
           <span id="resultState" class="status-badge neutral">SIN CALCULAR</span>
@@ -139,35 +187,68 @@
 
       <div class="result-grid">
         <div class="metric"><span>FR · Recepción</span><strong id="resultReceived">—</strong></div>
-        <div class="metric"><span>FB/FV · Vencimiento superior</span><strong id="resultFactoryExpiry">—</strong></div>
+        <div class="metric"><span>Venc. cerrado / FB-FV</span><strong id="resultClosedExpiry">—</strong></div>
+        <div class="metric"><span>Destino</span><strong id="resultStage">—</strong></div>
         <div class="metric"><span>Operario</span><strong id="resultOperator">—</strong></div>
         <div class="metric"><span>Inicio PREP/PROD</span><strong id="resultStart">—</strong></div>
-        <div class="metric"><span>Vencimiento oficial</span><strong id="resultOfficialExpiry">—</strong></div>
-        <div class="metric"><span>Vencimiento escrito PREP/PROD</span><strong id="resultWrittenExpiry">—</strong></div>
-        <div class="metric"><span>Conservación</span><strong id="resultStorage">—</strong></div>
+        <div class="metric"><span>Vida útil aplicada</span><strong id="resultLife">—</strong></div>
+        <div class="metric"><span>Vencimiento calculado</span><strong id="resultOfficialExpiry">—</strong></div>
+        <div class="metric"><span>Vencimiento escrito</span><strong id="resultWrittenExpiry">—</strong></div>
       </div>
 
       <div id="warningBox" class="warning" hidden></div>
-      <button id="saveHistoryBtn" class="btn secondary">Guardar revisión</button>
-    </section>
 
-    <section class="card">
-      <div class="section-title">
-        <div>
-          <h2>Historial del dispositivo</h2>
-          <p>Se guarda localmente en este navegador.</p>
-        </div>
-        <button id="clearHistoryBtn" class="btn ghost small">Borrar historial</button>
+      <div class="actions">
+        <button id="saveHistoryBtn" class="btn secondary">Guardar revisión</button>
+        <button id="restartBtn" class="btn primary">Nueva revisión</button>
       </div>
-      <div id="historyList" class="history-list"></div>
-    </section>
-  </main>
+    </div>
+  </section>
 
-  <footer>
-    Tabla base: Chile · actualización 28 de julio de 2026. La lectura automática debe verificarse antes de tomar decisiones sobre el producto.
-  </footer>
+  <section class="card camera-card">
+    <div class="section-title">
+      <div>
+        <h2>Leer Meilan con cámara <span class="optional-tag">Opcional</span></h2>
+        <p>La foto puede rellenar FR, vencimiento superior, PREP/PROD, fechas y horas. Siempre revisa los datos detectados.</p>
+      </div>
+      <span id="cameraStatus" class="pill neutral">Cámara lista</span>
+    </div>
+    <div class="camera-wrap">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="canvas" hidden></canvas>
+      <img id="preview" alt="Vista previa de la etiqueta" hidden>
+      <div class="scan-frame" aria-hidden="true"></div>
+    </div>
+    <div class="actions">
+      <button id="openCameraBtn" class="btn primary">Abrir cámara</button>
+      <button id="captureBtn" class="btn primary" disabled>Tomar foto y leer</button>
+      <label class="btn secondary file-btn">Subir foto<input id="fileInput" type="file" accept="image/*" capture="environment"></label>
+      <button id="resetImageBtn" class="btn ghost" type="button">Limpiar foto</button>
+    </div>
+    <div id="ocrBox" class="ocr-box" hidden>
+      <div class="ocr-head"><strong>Lectura automática</strong><span id="ocrProgress">0%</span></div>
+      <div class="progress"><span id="ocrProgressBar"></span></div>
+      <pre id="ocrText"></pre>
+    </div>
+  </section>
 
-  <script src="data.js"></script>
-  <script src="app.js"></script>
+  <section class="card">
+    <div class="section-title">
+      <div>
+        <h2>Historial del dispositivo</h2>
+        <p>Las revisiones se guardan localmente en este navegador.</p>
+      </div>
+      <button id="clearHistoryBtn" class="btn ghost small">Borrar historial</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </section>
+</main>
+
+<footer>
+  Tabla base: Chile · actualización 28 de julio de 2026. Cuando la planilla no define una vida útil, el sistema solicita el dato manual y lo identifica como manual.
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
