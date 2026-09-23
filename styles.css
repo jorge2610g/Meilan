@@ -68,3 +68,22 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
 }
 
 .top-actions a{text-decoration:none}
+
+/* Secciones independientes v0.5.0 */
+.section-selector{padding-bottom:16px}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mode-card{border:2px solid var(--line);background:#fff;border-radius:18px;padding:18px;text-align:left;cursor:pointer;transition:.2s}
+.mode-card:hover,.mode-card:focus-visible{border-color:#fca5a5;transform:translateY(-1px)}
+.mode-card.active{border-color:var(--red2);background:#fff7f7;box-shadow:0 10px 25px rgba(153,27,27,.08)}
+.mode-code{display:inline-flex;background:var(--red3);color:var(--red);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;margin-bottom:10px}
+.mode-card strong{display:block;font-size:18px;margin-bottom:4px}
+.mode-card small{display:block;color:var(--muted);line-height:1.4}
+.section-kicker{font-size:10px;letter-spacing:.12em;font-weight:900;color:var(--red2)}
+.calculator-section{scroll-margin-top:12px}
+.result-panel{margin-top:16px;border:1px solid var(--line);border-top:5px solid var(--red2);border-radius:16px;padding:16px;background:#fff}
+.pp-choice.selected{border-color:var(--red2);background:#fff7f7;box-shadow:0 8px 22px rgba(153,27,27,.08)}
+.compact-choice{margin-bottom:14px}
+@media(max-width:700px){
+  .mode-grid{grid-template-columns:1fr}
+  .mode-card{padding:15px}
+}
