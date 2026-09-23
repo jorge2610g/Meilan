@@ -1,77 +1,52 @@
 (() => {
-  const $ = (id) => document.getElementById(id);
+  const $ = id => document.getElementById(id);
   const D = window.MEILAN_DATA;
 
   const els = {
-    product:$("productSelect"),
-    receivedDate:$("receivedDate"),
-    validateReceipt:$("validateReceiptBtn"),
-    closedRuleBox:$("closedRuleBox"),
-    closedRuleTitle:$("closedRuleTitle"),
-    closedRuleText:$("closedRuleText"),
-    closedExpiryAuto:$("closedExpiryAuto"),
-    closedExpiryAutoValue:$("closedExpiryAutoValue"),
-    closedManualWrap:$("closedManualWrap"),
-    closedManualTitle:$("closedManualTitle"),
-    closedManualHelp:$("closedManualHelp"),
-    closedExpiryDate:$("closedExpiryDate"),
-    confirmClosed:$("confirmClosedBtn"),
-    continueStage:$("continueStageBtn"),
-    processHeading:$("processHeading"),
-    processHelper:$("processHelper"),
-    processRuleBox:$("processRuleBox"),
-    processRuleKicker:$("processRuleKicker"),
-    processRuleTitle:$("processRuleTitle"),
-    processRuleText:$("processRuleText"),
-    processDate:$("processDate"),
-    processTime:$("processTime"),
-    processDateLabel:$("processDateLabel"),
-    processTimeLabel:$("processTimeLabel"),
-    manualLifeWrap:$("manualLifeWrap"),
-    manualLifeAmount:$("manualLifeAmount"),
-    manualLifeUnit:$("manualLifeUnit"),
-    useByProcessBox:$("useByProcessBox"),
-    useByProcessValue:$("useByProcessValue"),
-    calculate:$("calculateBtn"),
-    flowBadge:$("flowBadge"),
-    resultState:$("resultState"),
-    resultProduct:$("resultProduct"),
-    resultRule:$("resultRule"),
-    remaining:$("remainingText"),
-    resultReceived:$("resultReceived"),
-    resultClosedExpiry:$("resultClosedExpiry"),
-    resultStage:$("resultStage"),
-    resultStart:$("resultStart"),
-    resultLife:$("resultLife"),
-    official:$("resultOfficialExpiry"),
-    warning:$("warningBox"),
-    save:$("saveHistoryBtn"),
-    restart:$("restartBtn"),
-    history:$("historyList"),
-    clearHistory:$("clearHistoryBtn"),
-    networkBadge:$("networkBadge"),
-    installPwaBtn:$("installPwaBtn"),
+    showFrfbBtn:$("showFrfbBtn"), showPreprodBtn:$("showPreprodBtn"),
+    frfbSection:$("frfbSection"), preprodSection:$("preprodSection"),
+    frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
+    frCalculateBtn:$("frCalculateBtn"), frManualBox:$("frManualBox"),
+    frManualTitle:$("frManualTitle"), frManualHelp:$("frManualHelp"),
+    frManualExpiry:$("frManualExpiry"), frConfirmManualBtn:$("frConfirmManualBtn"),
+    frResult:$("frResult"), frResultProduct:$("frResultProduct"),
+    frResultRule:$("frResultRule"), frResultExpiry:$("frResultExpiry"),
+    frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
+    frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
+    continueToProcessBtn:$("continueToProcessBtn"),
+
+    ppProduct:$("ppProduct"), ppFields:$("ppFields"),
+    ppRuleBox:$("ppRuleBox"), ppRuleKicker:$("ppRuleKicker"),
+    ppRuleTitle:$("ppRuleTitle"), ppRuleText:$("ppRuleText"),
+    ppDateLabel:$("ppDateLabel"), ppTimeLabel:$("ppTimeLabel"),
+    ppDate:$("ppDate"), ppTime:$("ppTime"),
+    ppUseByBox:$("ppUseByBox"), ppUseByDate:$("ppUseByDate"),
+    ppManualLifeBox:$("ppManualLifeBox"), ppManualAmount:$("ppManualAmount"),
+    ppManualUnit:$("ppManualUnit"), ppCalculateBtn:$("ppCalculateBtn"),
+    ppResult:$("ppResult"), ppResultState:$("ppResultState"),
+    ppResultProduct:$("ppResultProduct"), ppResultRule:$("ppResultRule"),
+    ppRemaining:$("ppRemaining"), ppResultStage:$("ppResultStage"),
+    ppResultStart:$("ppResultStart"), ppResultLife:$("ppResultLife"),
+    ppResultExpiry:$("ppResultExpiry"), ppWarning:$("ppWarning"),
+    ppSaveBtn:$("ppSaveBtn"), newProcessBtn:$("newProcessBtn"),
+
+    history:$("historyList"), clearHistory:$("clearHistoryBtn"),
+    networkBadge:$("networkBadge"), installPwaBtn:$("installPwaBtn"),
     openPwaBtn:$("openPwaBtn")
   };
 
   const state = {
-    step:1,
-    productIndex:null,
-    received:null,
-    closedRule:null,
-    closedExpiry:null,
-    closedExpirySource:null,
-    stage:null,
-    processRule:null,
-    processExpiry:null
+    frRule:null, frExpiry:null, frProductIndex:null, frReceived:null,
+    ppStage:null, ppRule:null, ppExpiry:null
   };
 
-  let lastResult = null;
   let deferredInstallPrompt = null;
+  let lastFrResult = null;
+  let lastPpResult = null;
 
-  function initProducts(){
-    els.product.innerHTML = '<option value="">Selecciona un producto</option>';
-    const groups = {};
+  function populateSelect(select){
+    select.innerHTML='<option value="">Selecciona un producto</option>';
+    const groups={};
     D.products.forEach((p,i)=>{
       if(!groups[p.g]) groups[p.g]=[];
       groups[p.g].push({p,i});
@@ -81,11 +56,9 @@
       og.label=group;
       items.forEach(({p,i})=>{
         const o=document.createElement("option");
-        o.value=String(i);
-        o.textContent=p.n;
-        og.appendChild(o);
+        o.value=String(i); o.textContent=p.n; og.appendChild(o);
       });
-      els.product.appendChild(og);
+      select.appendChild(og);
     });
   }
 
@@ -94,76 +67,45 @@
     if(code==="use") return {type:"use",text:"Uso por fecha del envase/etiqueta",refrigerated:false};
     const m=/^(\d+)(d|h)(R)?$/.exec(code);
     if(!m) return null;
-    const amount=Number(m[1]);
-    const unit=m[2];
-    const refrigerated=Boolean(m[3]);
-    return {
-      type:"duration",
-      amount,
-      unit,
-      refrigerated,
-      text:formatLife(amount,unit,refrigerated)
-    };
+    const amount=Number(m[1]), unit=m[2], refrigerated=Boolean(m[3]);
+    return {type:"duration",amount,unit,refrigerated,text:formatLife(amount,unit,refrigerated)};
   }
 
   function formatLife(amount,unit,refrigerated=false){
     let text;
-    if(unit==="d"){
-      text=amount+" "+(amount===1?"día":"días")+" ("+(amount*24)+" horas)";
-    }else{
-      const days=amount%24===0 ? amount/24 : null;
+    if(unit==="d") text=amount+" "+(amount===1?"día":"días")+" ("+(amount*24)+" horas)";
+    else {
       text=amount+" "+(amount===1?"hora":"horas");
-      if(days) text+=" ("+days+" "+(days===1?"día":"días")+")";
+      if(amount%24===0){
+        const days=amount/24;
+        text+=" ("+days+" "+(days===1?"día":"días")+")";
+      }
     }
     if(refrigerated) text+=" · refrigerado";
     return text;
   }
 
-  function goStep(n){
-    state.step=n;
-    document.querySelectorAll(".wizard-step").forEach(x=>{
-      x.classList.toggle("active",Number(x.dataset.step)===n);
-    });
-    document.querySelectorAll("[data-step-dot]").forEach(x=>{
-      const s=Number(x.dataset.stepDot);
-      x.classList.toggle("active",s===n);
-      x.classList.toggle("done",s<n);
-    });
-    els.flowBadge.textContent="Paso "+n+" de 4";
-    document.querySelector(".wizard-card")?.scrollIntoView({behavior:"smooth",block:"start"});
-  }
-
-  function dateOnly(value,endOfDay=false){
-    if(!value) return null;
-    const d=new Date(value+"T"+(endOfDay?"23:59:59":"00:00:00"));
+  function dateOnly(v,end=false){
+    if(!v) return null;
+    const d=new Date(v+"T"+(end?"23:59:59":"00:00:00"));
     return Number.isNaN(d.getTime())?null:d;
   }
-
-  function dateTime(date,time){
-    if(!date || !time) return null;
-    const d=new Date(date+"T"+time+":00");
-    return Number.isNaN(d.getTime())?null:d;
+  function dateTime(d,t){
+    if(!d||!t) return null;
+    const x=new Date(d+"T"+t+":00");
+    return Number.isNaN(x.getTime())?null:x;
   }
-
   function addRule(base,rule){
     const d=new Date(base);
-    const ms=rule.amount*(rule.unit==="d"?86400000:3600000);
-    d.setTime(d.getTime()+ms);
+    d.setTime(d.getTime()+rule.amount*(rule.unit==="d"?86400000:3600000));
     return d;
   }
-
   function formatDate(d){
-    if(!d) return "—";
-    return new Intl.DateTimeFormat("es-CL",{day:"2-digit",month:"2-digit",year:"numeric"}).format(d);
+    return d?new Intl.DateTimeFormat("es-CL",{day:"2-digit",month:"2-digit",year:"numeric"}).format(d):"—";
   }
-
   function formatDateTime(d){
-    if(!d) return "—";
-    return new Intl.DateTimeFormat("es-CL",{
-      day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false
-    }).format(d);
+    return d?new Intl.DateTimeFormat("es-CL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d):"—";
   }
-
   function humanDiff(ms){
     const past=ms<0;
     let mins=Math.round(Math.abs(ms)/60000);
@@ -172,295 +114,212 @@
     const parts=[];
     if(days) parts.push(days+" d");
     if(hrs) parts.push(hrs+" h");
-    if(mins || !parts.length) parts.push(mins+" min");
+    if(mins||!parts.length) parts.push(mins+" min");
     return past?"Venció hace "+parts.join(" "):parts.join(" ");
   }
-
-  function currentProduct(){
-    if(els.product.value==="") return null;
-    return D.products[Number(els.product.value)] || null;
+  function escapeHTML(s){
+    return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
 
-  function resetClosedUI(){
-    els.closedRuleBox.hidden=true;
-    els.closedManualWrap.hidden=true;
-    els.closedExpiryAuto.hidden=true;
-    els.continueStage.hidden=true;
-    els.closedRuleBox.classList.remove("rule-ok","rule-use","rule-missing");
+  function showMode(mode){
+    const fr=mode==="fr";
+    els.frfbSection.hidden=!fr;
+    els.preprodSection.hidden=fr;
+    els.showFrfbBtn.classList.toggle("active",fr);
+    els.showPreprodBtn.classList.toggle("active",!fr);
+    (fr?els.frfbSection:els.preprodSection).scrollIntoView({behavior:"smooth",block:"start"});
   }
 
-  function validateReceipt(){
-    const p=currentProduct();
-    const received=dateOnly(els.receivedDate.value);
-
-    if(!p){ alert("Selecciona el producto."); return; }
+  function calculateFr(){
+    if(els.frProduct.value===""){ alert("Selecciona un producto."); return; }
+    const received=dateOnly(els.frReceivedDate.value);
     if(!received){ alert("Ingresa la fecha de recibimiento."); return; }
 
-    state.productIndex=Number(els.product.value);
-    state.received=received;
-    state.closedExpiry=null;
-    state.closedExpirySource=null;
-
-    // Índice 1 = Cerrado · FR/FV · En cámara fría.
+    const pIndex=Number(els.frProduct.value);
+    const p=D.products[pIndex];
     const rule=parseRule(p.r[1]);
-    state.closedRule=rule;
 
-    els.closedRuleBox.hidden=false;
-    els.closedManualWrap.hidden=true;
-    els.closedExpiryAuto.hidden=true;
-    els.continueStage.hidden=true;
-    els.closedRuleBox.classList.remove("rule-ok","rule-use","rule-missing");
+    state.frProductIndex=pIndex;
+    state.frReceived=received;
+    state.frRule=rule;
+    state.frExpiry=null;
+
+    els.frManualBox.hidden=true;
+    els.frResult.hidden=true;
 
     if(rule?.type==="duration"){
-      state.closedExpiry=addRule(received,rule);
-      state.closedExpirySource="planilla";
-      els.closedRuleBox.classList.add("rule-ok");
-      els.closedRuleTitle.textContent=rule.text;
-      els.closedRuleText.textContent=
-        "La planilla indica que este producto cerrado en cámara fría dura "+rule.text+
-        " desde la fecha de recibimiento.";
-      els.closedExpiryAuto.hidden=false;
-      els.closedExpiryAutoValue.textContent=formatDate(state.closedExpiry);
-      els.continueStage.hidden=false;
+      state.frExpiry=addRule(received,rule);
+      renderFrResult(p,rule,state.frExpiry,"planilla");
       return;
     }
 
+    els.frManualBox.hidden=false;
     if(rule?.type==="use"){
-      els.closedRuleBox.classList.add("rule-use");
-      els.closedRuleTitle.textContent="Uso por fecha";
-      els.closedRuleText.textContent=
-        "Este producto no se calcula sumando días desde la recepción: se utiliza la fecha que viene en el envase o etiqueta original.";
-      els.closedManualWrap.hidden=false;
-      els.closedManualTitle.textContent="Ingresa la fecha de vencimiento que trae el producto.";
-      els.closedManualHelp.textContent=
-        "La planilla marca “Uso por fecha”, por eso necesitamos la fecha real indicada en el envase.";
-      return;
+      els.frManualTitle.textContent="Este producto usa la fecha que trae en el envase.";
+      els.frManualHelp.textContent="Ingresa la fecha de vencimiento indicada en el producto.";
+    }else{
+      els.frManualTitle.textContent="La planilla no tiene una duración definida para este producto cerrado.";
+      els.frManualHelp.textContent="Ingresa manualmente la fecha de vencimiento asignada al producto.";
     }
-
-    els.closedRuleBox.classList.add("rule-missing");
-    els.closedRuleTitle.textContent="Sin duración en cámara fría";
-    els.closedRuleText.textContent=
-      "La planilla no tiene una duración asignada en “Cerrado · FR/FV · En cámara fría” para este producto.";
-    els.closedManualWrap.hidden=false;
-    els.closedManualTitle.textContent="Ingresa la fecha de vencimiento asignada al producto.";
-    els.closedManualHelp.textContent=
-      "Como la planilla está vacía en esta condición, la fecha debe ser ingresada manualmente.";
   }
 
-  function confirmClosed(){
-    const expiry=dateOnly(els.closedExpiryDate.value,true);
-    if(!expiry){ alert("Ingresa la fecha de vencimiento del producto."); return; }
-
-    state.closedExpiry=expiry;
-    state.closedExpirySource=state.closedRule?.type==="use" ? "uso-por-fecha" : "manual";
-
-    els.closedExpiryAuto.hidden=false;
-    els.closedExpiryAutoValue.textContent=formatDate(expiry);
-    els.continueStage.hidden=false;
+  function confirmFrManual(){
+    const expiry=dateOnly(els.frManualExpiry.value,true);
+    if(!expiry){ alert("Ingresa la fecha de vencimiento."); return; }
+    const p=D.products[state.frProductIndex];
+    state.frExpiry=expiry;
+    renderFrResult(p,state.frRule,expiry,state.frRule?.type==="use"?"uso-por-fecha":"manual");
   }
 
-  function chooseStage(stage){
-    state.stage=stage;
-    const p=D.products[state.productIndex];
-    const ruleIndex=stage==="PREP" ? 2 : 4;
-    const rule=parseRule(p.r[ruleIndex]);
-    state.processRule=rule;
+  function renderFrResult(p,rule,expiry,source){
+    els.frResult.hidden=false;
+    els.frResultProduct.textContent=p.n;
+    els.frResultRule.textContent=
+      source==="planilla"?"Calculado automáticamente con la columna Cerrado · FR/FV · En cámara fría.":
+      source==="uso-por-fecha"?"Fecha tomada del vencimiento indicado por el usuario.":
+      "Fecha de vencimiento ingresada manualmente.";
+    els.frResultExpiry.textContent=formatDate(expiry);
+    els.frResultReceived.textContent=formatDate(state.frReceived);
+    els.frResultLife.textContent=rule?.type==="duration"?rule.text:(source==="uso-por-fecha"?"Uso por fecha":"Manual");
+    const days=(expiry-state.frReceived)/86400000;
+    els.frResultRemaining.textContent=(days>=0?Math.ceil(days):0)+" días";
 
-    els.processRuleBox.classList.remove("rule-ok","rule-use","rule-missing");
-    els.manualLifeWrap.hidden=true;
-    els.useByProcessBox.hidden=true;
-    els.processDate.value="";
-    els.processTime.value="";
-    els.manualLifeAmount.value="";
+    lastFrResult={
+      type:"FR/FB", product:p.n, received:state.frReceived.toISOString(),
+      expiry:expiry.toISOString(), life:els.frResultLife.textContent,
+      status:expiry<new Date()?"VENCIDO":"VIGENTE"
+    };
+  }
+
+  function choosePpStage(stage){
+    if(els.ppProduct.value===""){ alert("Selecciona el producto antes de elegir PREP o PROD."); return; }
+
+    state.ppStage=stage;
+    const p=D.products[Number(els.ppProduct.value)];
+    const rule=parseRule(p.r[stage==="PREP"?2:4]);
+    state.ppRule=rule;
+
+    document.querySelectorAll(".pp-choice").forEach(b=>b.classList.toggle("selected",b.dataset.stage===stage));
+    els.ppFields.hidden=false;
+    els.ppResult.hidden=true;
+    els.ppUseByBox.hidden=true;
+    els.ppManualLifeBox.hidden=true;
+    els.ppRuleBox.classList.remove("rule-ok","rule-use","rule-missing");
 
     if(stage==="PREP"){
-      els.processHeading.textContent="3. Preparación";
-      els.processHelper.textContent=
-        "Ingresa la fecha y la hora exactas en que se preparó el producto. El cálculo parte desde ese momento, no desde la fecha de recibimiento.";
-      els.processDateLabel.textContent="Fecha de preparación";
-      els.processTimeLabel.textContent="Hora de preparación";
-      els.processRuleKicker.textContent="ABIERTO · PREP · EN CÁMARA FRÍA / PREPARADO";
+      els.ppRuleKicker.textContent="ABIERTO · PREP · EN CÁMARA FRÍA / PREPARADO";
+      els.ppDateLabel.textContent="Fecha de preparación";
+      els.ppTimeLabel.textContent="Hora de preparación";
     }else{
-      els.processHeading.textContent="3. Producción";
-      els.processHelper.textContent=
-        "Ingresa la fecha y la hora exactas en que el producto se sacó para trabajar en producción.";
-      els.processDateLabel.textContent="Fecha de producción";
-      els.processTimeLabel.textContent="Hora de producción";
-      els.processRuleKicker.textContent="ABIERTO · PROD · LÍNEA PRODUCCIÓN";
+      els.ppRuleKicker.textContent="ABIERTO · PROD · LÍNEA PRODUCCIÓN";
+      els.ppDateLabel.textContent="Fecha de producción";
+      els.ppTimeLabel.textContent="Hora de producción";
     }
 
     if(rule?.type==="duration"){
-      els.processRuleBox.classList.add("rule-ok");
-      els.processRuleTitle.textContent=rule.text;
-      els.processRuleText.textContent=
-        "La planilla define esta vida útil para "+(stage==="PREP"?"preparación":"producción")+
-        ". Se sumará exactamente desde la fecha y hora que ingreses.";
+      els.ppRuleBox.classList.add("rule-ok");
+      els.ppRuleTitle.textContent=rule.text;
+      els.ppRuleText.textContent="El sistema sumará automáticamente este tiempo desde la fecha y hora que ingreses.";
     }else if(rule?.type==="use"){
-      els.processRuleBox.classList.add("rule-use");
-      els.processRuleTitle.textContent="Uso por fecha";
-      els.processRuleText.textContent=
-        "La planilla indica “Uso por fecha”, por lo que se conserva la fecha de vencimiento ya definida para el producto.";
-      els.useByProcessBox.hidden=false;
-      els.useByProcessValue.textContent=formatDate(state.closedExpiry);
+      els.ppRuleBox.classList.add("rule-use");
+      els.ppRuleTitle.textContent="Uso por fecha";
+      els.ppRuleText.textContent="La planilla indica que se debe mantener la fecha de vencimiento del producto.";
+      els.ppUseByBox.hidden=false;
     }else{
-      els.processRuleBox.classList.add("rule-missing");
-      els.processRuleTitle.textContent="Sin tiempo definido en la planilla";
-      els.processRuleText.textContent=
-        "La celda de esta etapa está vacía. Debes ingresar manualmente la vida útil.";
-      els.manualLifeWrap.hidden=false;
+      els.ppRuleBox.classList.add("rule-missing");
+      els.ppRuleTitle.textContent="Sin duración definida";
+      els.ppRuleText.textContent="La planilla está vacía para esta etapa. Ingresa la vida útil manualmente.";
+      els.ppManualLifeBox.hidden=false;
     }
-
-    goStep(3);
   }
 
-  function calculateProcess(){
-    const p=D.products[state.productIndex];
-    if(!p || !state.stage){ alert("Falta seleccionar el producto o el tipo de proceso."); return; }
+  function calculatePp(){
+    if(els.ppProduct.value===""){ alert("Selecciona un producto."); return; }
+    if(!state.ppStage){ alert("Selecciona Preparación o Producción."); return; }
 
-    const start=dateTime(els.processDate.value,els.processTime.value);
-    if(!start){
-      alert("Ingresa la fecha y la hora de "+(state.stage==="PREP"?"preparación.":"producción."));
-      return;
-    }
+    const start=dateTime(els.ppDate.value,els.ppTime.value);
+    if(!start){ alert("Ingresa la fecha y la hora del proceso."); return; }
 
-    let expiry;
-    let lifeText;
-    let lifeSource="planilla";
-    const rule=state.processRule;
+    const p=D.products[Number(els.ppProduct.value)];
+    const rule=state.ppRule;
+    let expiry,lifeText,source="planilla";
 
     if(rule?.type==="duration"){
       expiry=addRule(start,rule);
       lifeText=rule.text;
     }else if(rule?.type==="use"){
-      if(!state.closedExpiry){
-        alert("Primero debes definir la fecha de vencimiento del producto recibido.");
-        return;
-      }
-      expiry=new Date(state.closedExpiry);
-      lifeText="Uso por fecha del producto recibido";
+      expiry=dateOnly(els.ppUseByDate.value,true);
+      if(!expiry){ alert("Ingresa la fecha de vencimiento del producto."); return; }
+      lifeText="Uso por fecha";
+      source="uso-por-fecha";
     }else{
-      const amount=Number(els.manualLifeAmount.value);
-      const unit=els.manualLifeUnit.value;
-      if(!Number.isFinite(amount) || amount<=0){
-        alert("Ingresa la vida útil manual para esta etapa.");
-        return;
-      }
-      const manualRule={amount,unit};
-      expiry=addRule(start,manualRule);
+      const amount=Number(els.ppManualAmount.value);
+      const unit=els.ppManualUnit.value;
+      if(!Number.isFinite(amount)||amount<=0){ alert("Ingresa la vida útil manual."); return; }
+      expiry=addRule(start,{amount,unit});
       lifeText=formatLife(amount,unit,false);
-      lifeSource="manual";
+      source="manual";
     }
 
-    state.processExpiry=expiry;
-
-    const now=new Date();
-    const remaining=expiry-now;
+    state.ppExpiry=expiry;
+    const remaining=expiry-new Date();
     let status,statusClass;
-    if(remaining<0){ status="VENCIDO"; statusClass="expired"; }
-    else if(remaining<=12*3600000){ status="POR VENCER"; statusClass="soon"; }
-    else{ status="VIGENTE"; statusClass="ok"; }
+    if(remaining<0){status="VENCIDO";statusClass="expired";}
+    else if(remaining<=12*3600000){status="POR VENCER";statusClass="soon";}
+    else{status="VIGENTE";statusClass="ok";}
+
+    els.ppResult.hidden=false;
+    els.ppResultState.textContent=status;
+    els.ppResultState.className="status-badge "+statusClass;
+    els.ppResultProduct.textContent=p.n;
+    els.ppResultRule.textContent=(state.ppStage==="PREP"?"Preparación":"Producción")+" · "+(source==="manual"?"dato manual":"según planilla");
+    els.ppRemaining.textContent=humanDiff(remaining);
+    els.ppResultStage.textContent=state.ppStage==="PREP"?"PREP · Preparación":"PROD · Producción";
+    els.ppResultStart.textContent=formatDateTime(start);
+    els.ppResultLife.textContent=lifeText;
+    els.ppResultExpiry.textContent=rule?.type==="use"?formatDate(expiry):formatDateTime(expiry);
 
     const warnings=[];
-    if(state.closedExpiry && start>state.closedExpiry){
-      warnings.push("La fecha/hora del proceso está después del vencimiento del producto recibido.");
-    }
-    if(rule?.refrigerated){
-      warnings.push("Esta vida útil está marcada en la planilla como almacenamiento refrigerado.");
-    }
+    if(rule?.refrigerated) warnings.push("Esta regla está marcada como almacenamiento refrigerado.");
+    els.ppWarning.hidden=!warnings.length;
+    els.ppWarning.innerHTML=warnings.map(x=>"• "+escapeHTML(x)).join("<br>");
 
-    els.resultState.textContent=status;
-    els.resultState.className="status-badge "+statusClass;
-    els.resultProduct.textContent=p.n;
-    els.resultRule.textContent=
-      (state.stage==="PREP"?"Preparación":"Producción")+" · "+lifeText+
-      (lifeSource==="manual"?" · dato manual":"");
-    els.remaining.textContent=humanDiff(remaining);
-    els.resultReceived.textContent=formatDate(state.received);
-    els.resultClosedExpiry.textContent=formatDate(state.closedExpiry);
-    els.resultStage.textContent=state.stage==="PREP" ? "PREP · Preparación" : "PROD · Producción";
-    els.resultStart.textContent=formatDateTime(start);
-    els.resultLife.textContent=lifeText+(lifeSource==="manual"?" (manual)":"");
-    els.official.textContent=
-      rule?.type==="use" ? formatDate(expiry) : formatDateTime(expiry);
-
-    els.warning.hidden=!warnings.length;
-    els.warning.innerHTML=warnings.map(w=>"• "+escapeHTML(w)).join("<br>");
-
-    lastResult={
-      at:new Date().toISOString(),
-      product:p.n,
-      received:state.received?.toISOString()||null,
-      closedExpiry:state.closedExpiry?.toISOString()||null,
-      closedExpirySource:state.closedExpirySource,
-      stage:state.stage,
-      start:start.toISOString(),
-      life:lifeText,
-      lifeSource,
-      expiry:expiry.toISOString(),
-      status
+    lastPpResult={
+      type:state.ppStage, product:p.n, start:start.toISOString(),
+      expiry:expiry.toISOString(), life:lifeText, status
     };
-
-    goStep(4);
   }
 
-  function restart(){
-    state.step=1;
-    state.productIndex=null;
-    state.received=null;
-    state.closedRule=null;
-    state.closedExpiry=null;
-    state.closedExpirySource=null;
-    state.stage=null;
-    state.processRule=null;
-    state.processExpiry=null;
-    lastResult=null;
-
-    els.product.value="";
-    els.receivedDate.value="";
-    els.closedExpiryDate.value="";
-    els.processDate.value="";
-    els.processTime.value="";
-    els.manualLifeAmount.value="";
-    els.manualLifeUnit.value="d";
-    resetClosedUI();
-    goStep(1);
+  function continueToProcess(){
+    if(state.frProductIndex==null) return;
+    els.ppProduct.value=String(state.frProductIndex);
+    if(state.frExpiry) els.ppUseByDate.value=state.frExpiry.toISOString().slice(0,10);
+    showMode("pp");
   }
 
-  function historyLoad(){
-    try{return JSON.parse(localStorage.getItem("meilan_history_v3")||"[]")}catch{return[]}
+  function resetPp(){
+    state.ppStage=null; state.ppRule=null; state.ppExpiry=null;
+    els.ppDate.value=""; els.ppTime.value=""; els.ppUseByDate.value="";
+    els.ppManualAmount.value=""; els.ppManualUnit.value="d";
+    els.ppFields.hidden=true; els.ppResult.hidden=true;
+    document.querySelectorAll(".pp-choice").forEach(b=>b.classList.remove("selected"));
   }
 
-  function historySave(items){
-    localStorage.setItem("meilan_history_v3",JSON.stringify(items.slice(0,80)));
+  function historyLoad(){try{return JSON.parse(localStorage.getItem("meilan_history_v5")||"[]")}catch{return[]}}
+  function historySave(item){
+    const h=historyLoad(); h.unshift(item);
+    localStorage.setItem("meilan_history_v5",JSON.stringify(h.slice(0,80)));
     renderHistory();
   }
-
   function renderHistory(){
-    const h=historyLoad();
-    els.history.innerHTML="";
-    if(!h.length){
-      els.history.innerHTML='<div class="history-empty">Aún no hay cálculos guardados.</div>';
-      return;
-    }
-
+    const h=historyLoad(); els.history.innerHTML="";
+    if(!h.length){els.history.innerHTML='<div class="history-empty">Aún no hay cálculos guardados.</div>';return;}
     h.slice(0,20).forEach(x=>{
-      const div=document.createElement("div");
-      div.className="history-item";
-      const stage=x.stage==="PREP"?"PREP":"PROD";
-      const exp=x.expiry?formatDateTime(new Date(x.expiry)):"—";
-      div.innerHTML=
-        '<div><strong>'+escapeHTML(x.product)+'</strong>'+
-        '<small>'+stage+' · Vence: '+escapeHTML(exp)+'<br>'+escapeHTML(x.life||"")+'</small></div>'+
-        '<span class="status-badge '+(x.status==="VENCIDO"?"expired":x.status==="POR VENCER"?"soon":"ok")+'">'+
-        escapeHTML(x.status)+'</span>';
+      const div=document.createElement("div"); div.className="history-item";
+      const exp=x.expiry?new Date(x.expiry):null;
+      div.innerHTML='<div><strong>'+escapeHTML(x.product)+'</strong><small>'+escapeHTML(x.type)+' · Vence: '+escapeHTML(x.type==="FR/FB"?formatDate(exp):formatDateTime(exp))+'<br>'+escapeHTML(x.life||"")+'</small></div><span class="status-badge '+(x.status==="VENCIDO"?"expired":x.status==="POR VENCER"?"soon":"ok")+'">'+escapeHTML(x.status||"")+'</span>';
       els.history.appendChild(div);
     });
-  }
-
-  function escapeHTML(s){
-    return String(s??"").replace(/[&<>"']/g,c=>({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[c]));
   }
 
   function updateNetworkStatus(){
@@ -469,141 +328,82 @@
     els.networkBadge.textContent=online?"En línea":"Sin internet";
     els.networkBadge.className="pill "+(online?"ok":"soon");
   }
-
   function isStandalone(){
-    return window.matchMedia?.("(display-mode: standalone)")?.matches ||
-      window.navigator.standalone === true;
+    return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone===true;
   }
-
   function setInstalledUi(installed){
     if(isStandalone()){
-      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
-      if(els.openPwaBtn) els.openPwaBtn.hidden=true;
-      return;
+      els.installPwaBtn.hidden=true; els.openPwaBtn.hidden=true; return;
     }
-
     if(installed){
       localStorage.setItem("meilan_pwa_installed","1");
-      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
-      if(els.openPwaBtn) els.openPwaBtn.hidden=false;
+      els.installPwaBtn.hidden=true; els.openPwaBtn.hidden=false;
     }else{
       localStorage.removeItem("meilan_pwa_installed");
-      if(els.installPwaBtn) els.installPwaBtn.hidden=false;
-      if(els.openPwaBtn) els.openPwaBtn.hidden=true;
+      els.installPwaBtn.hidden=false; els.openPwaBtn.hidden=true;
     }
   }
-
   async function detectInstalledPwa(){
-    if(isStandalone()){
-      setInstalledUi(true);
-      return true;
-    }
-
+    if(isStandalone()){setInstalledUi(true);return true;}
     if("getInstalledRelatedApps" in navigator){
       try{
         const apps=await navigator.getInstalledRelatedApps();
-        const installed=Array.isArray(apps) && apps.some(app=>app.platform==="webapp");
-        setInstalledUi(installed);
-        return installed;
+        const installed=Array.isArray(apps)&&apps.some(app=>app.platform==="webapp");
+        setInstalledUi(installed); return installed;
       }catch{}
     }
-
     const saved=localStorage.getItem("meilan_pwa_installed")==="1";
-    setInstalledUi(saved);
-    return saved;
+    setInstalledUi(saved); return saved;
   }
-
   function setupPwaInstall(){
     updateNetworkStatus();
     window.addEventListener("online",updateNetworkStatus);
     window.addEventListener("offline",updateNetworkStatus);
-
     window.addEventListener("beforeinstallprompt",event=>{
-      event.preventDefault();
-      deferredInstallPrompt=event;
-      localStorage.removeItem("meilan_pwa_installed");
-      if(!isStandalone()){
-        if(els.installPwaBtn) els.installPwaBtn.hidden=false;
-        if(els.openPwaBtn) els.openPwaBtn.hidden=true;
-      }
+      event.preventDefault(); deferredInstallPrompt=event;
+      if(!isStandalone()){els.installPwaBtn.hidden=false;els.openPwaBtn.hidden=true;}
     });
-
-    window.addEventListener("appinstalled",()=>{
-      deferredInstallPrompt=null;
-      setInstalledUi(true);
-    });
-
+    window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;setInstalledUi(true);});
     els.installPwaBtn?.addEventListener("click",async()=>{
-      if(isStandalone()){
-        els.installPwaBtn.hidden=true;
-        return;
-      }
-
       if(!deferredInstallPrompt){
         const installed=await detectInstalledPwa();
         if(installed) return;
-        alert("Chrome todavía no habilitó el instalador automático. Espera unos segundos y vuelve a tocar “Instalar”. Si no aparece, abre el menú de Chrome y elige “Instalar app”.");
+        alert("Chrome todavía no habilitó el instalador automático. Vuelve a tocar “Instalar” en unos segundos o usa el menú de Chrome.");
         return;
       }
-
-      const promptEvent=deferredInstallPrompt;
-      deferredInstallPrompt=null;
+      const promptEvent=deferredInstallPrompt; deferredInstallPrompt=null;
       const result=await promptEvent.prompt();
-      if(result?.outcome==="accepted"){
-        localStorage.setItem("meilan_pwa_installed","1");
-        setInstalledUi(true);
-      }else{
-        setInstalledUi(false);
-      }
+      if(result?.outcome==="accepted") setInstalledUi(true); else setInstalledUi(false);
     });
-
-    els.openPwaBtn?.addEventListener("click",()=>{
-      localStorage.setItem("meilan_pwa_installed","1");
-    });
-
     detectInstalledPwa();
   }
 
-  els.validateReceipt.addEventListener("click",validateReceipt);
-  els.confirmClosed.addEventListener("click",confirmClosed);
-  els.continueStage.addEventListener("click",()=>goStep(2));
+  els.showFrfbBtn.addEventListener("click",()=>showMode("fr"));
+  els.showPreprodBtn.addEventListener("click",()=>showMode("pp"));
 
-  document.querySelectorAll("[data-stage-choice]").forEach(btn=>{
-    btn.addEventListener("click",()=>chooseStage(btn.dataset.stageChoice));
-  });
+  els.frCalculateBtn.addEventListener("click",calculateFr);
+  els.frConfirmManualBtn.addEventListener("click",confirmFrManual);
+  els.continueToProcessBtn.addEventListener("click",continueToProcess);
+  els.frSaveBtn.addEventListener("click",()=>{if(lastFrResult)historySave(lastFrResult);});
 
-  document.querySelectorAll("[data-back]").forEach(btn=>{
-    btn.addEventListener("click",()=>goStep(Number(btn.dataset.back)));
-  });
-
-  els.calculate.addEventListener("click",calculateProcess);
-  els.restart.addEventListener("click",restart);
-
-  els.save.addEventListener("click",()=>{
-    if(!lastResult) return;
-    const h=historyLoad();
-    h.unshift(lastResult);
-    historySave(h);
-    els.save.textContent="Guardado ✓";
-    setTimeout(()=>els.save.textContent="Guardar revisión",1200);
-  });
+  document.querySelectorAll(".pp-choice").forEach(btn=>btn.addEventListener("click",()=>choosePpStage(btn.dataset.stage)));
+  els.ppCalculateBtn.addEventListener("click",calculatePp);
+  els.ppSaveBtn.addEventListener("click",()=>{if(lastPpResult)historySave(lastPpResult);});
+  els.newProcessBtn.addEventListener("click",resetPp);
 
   els.clearHistory.addEventListener("click",()=>{
     if(confirm("¿Borrar el historial guardado en este dispositivo?")){
-      localStorage.removeItem("meilan_history_v3");
-      renderHistory();
+      localStorage.removeItem("meilan_history_v5"); renderHistory();
     }
   });
 
-  initProducts();
+  populateSelect(els.frProduct);
+  populateSelect(els.ppProduct);
   renderHistory();
-  resetClosedUI();
-  goStep(1);
   setupPwaInstall();
+  showMode("fr");
 
   if("serviceWorker" in navigator){
-    navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"})
-      .then(reg=>reg.update())
-      .catch(()=>{});
+    navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});
   }
 })();
