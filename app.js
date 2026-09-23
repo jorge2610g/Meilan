@@ -29,8 +29,8 @@
     ppSaveBtn:$("ppSaveBtn"), newProcessBtn:$("newProcessBtn"),
 
     history:$("historyList"), clearHistory:$("clearHistoryBtn"),
-    networkBadge:$("networkBadge"), installPwaBtn:$("installPwaBtn"),
-    openPwaBtn:$("openPwaBtn")
+    networkBadge:$("networkBadge"), reloadAppBtn:$("reloadAppBtn"),
+    installPwaBtn:$("installPwaBtn"), openPwaBtn:$("openPwaBtn")
   };
 
   const state = {
@@ -337,6 +337,32 @@
     const saved=localStorage.getItem("meilan_pwa_installed")==="1";
     setInstalledUi(saved); return saved;
   }
+  async function reloadApp(){
+    if(!els.reloadAppBtn) return;
+    const original=els.reloadAppBtn.textContent;
+    els.reloadAppBtn.disabled=true;
+    els.reloadAppBtn.textContent=navigator.onLine?"Actualizando…":"Recargando…";
+
+    try{
+      if("serviceWorker" in navigator){
+        const reg=await navigator.serviceWorker.getRegistration("./");
+        if(reg && navigator.onLine){
+          try{ await reg.update(); }catch{}
+        }
+      }
+    }finally{
+      setTimeout(()=>{
+        window.location.reload();
+      },250);
+      setTimeout(()=>{
+        if(els.reloadAppBtn){
+          els.reloadAppBtn.disabled=false;
+          els.reloadAppBtn.textContent=original;
+        }
+      },2500);
+    }
+  }
+
   function setupPwaInstall(){
     updateNetworkStatus();
     window.addEventListener("online",updateNetworkStatus);
@@ -368,6 +394,8 @@
   els.ppCalculateBtn.addEventListener("click",calculatePp);
   els.ppSaveBtn.addEventListener("click",()=>{if(lastPpResult)historySave(lastPpResult);});
   els.newProcessBtn.addEventListener("click",resetPp);
+
+  els.reloadAppBtn?.addEventListener("click",reloadApp);
 
   els.clearHistory.addEventListener("click",()=>{
     if(confirm("¿Borrar el historial guardado en este dispositivo?")){
