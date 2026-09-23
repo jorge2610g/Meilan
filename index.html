@@ -10,135 +10,172 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.4.2">
+  <link rel="stylesheet" href="styles.css?v=0.5.0">
 </head>
 <body>
 <header class="topbar">
   <div>
     <span class="eyebrow">MEILAN</span>
     <h1>Calculadora de vida útil</h1>
-    <p>Calcula vencimiento de recepción, preparación y producción según la planilla oficial.</p>
+    <p>Usa FR/FB o PREP/PROD de forma independiente. Si quieres, puedes continuar de una sección a la otra.</p>
   </div>
-  <div class="top-actions"><span id="networkBadge" class="pill ok">En línea</span><button id="installPwaBtn" class="btn install-btn">Instalar</button><a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a><span class="version">v0.4.2</span></div>
+  <div class="top-actions">
+    <span id="networkBadge" class="pill ok">En línea</span>
+    <button id="installPwaBtn" class="btn install-btn">Instalar</button>
+    <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
+    <span class="version">v0.5.0</span>
+  </div>
 </header>
 
 <main class="shell">
-  <section class="card wizard-card">
+  <section class="card section-selector">
     <div class="section-title">
       <div>
-        <h2>Nuevo cálculo</h2>
-        <p>Completa los datos paso a paso. Solo pedimos fechas u horas cuando corresponden.</p>
+        <h2>¿Qué quieres calcular?</h2>
+        <p>Cada sección funciona por separado. No necesitas completar una para usar la otra.</p>
       </div>
-      <span id="flowBadge" class="pill neutral">Paso 1 de 4</span>
+    </div>
+    <div class="mode-grid">
+      <button id="showFrfbBtn" class="mode-card active">
+        <span class="mode-code">FR / FB</span>
+        <strong>Recepción y vencimiento</strong>
+        <small>Producto cerrado en cámara fría.</small>
+      </button>
+      <button id="showPreprodBtn" class="mode-card">
+        <span class="mode-code">PREP / PROD</span>
+        <strong>Preparación o producción</strong>
+        <small>Calcula desde la fecha y hora del proceso.</small>
+      </button>
+    </div>
+  </section>
+
+  <section id="frfbSection" class="card calculator-section">
+    <div class="section-title">
+      <div>
+        <span class="section-kicker">SECCIÓN 1</span>
+        <h2>FR / FB · Recepción</h2>
+        <p>Ingresa la fecha de recibimiento. El sistema revisa la vida útil del producto cerrado en cámara fría.</p>
+      </div>
     </div>
 
-    <div class="steps">
-      <div class="step-dot active" data-step-dot="1"><b>1</b><span>Recepción</span></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step-dot="2"><b>2</b><span>Destino</span></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step-dot="3"><b>3</b><span>Proceso</span></div>
-      <div class="step-line"></div>
-      <div class="step-dot" data-step-dot="4"><b>4</b><span>Resultado</span></div>
+    <div class="form-grid">
+      <label class="field span-2">
+        <span>Producto</span>
+        <select id="frProduct"></select>
+      </label>
+      <label class="field">
+        <span>Fecha de recibimiento (FR)</span>
+        <input id="frReceivedDate" type="date">
+      </label>
     </div>
 
-    <div class="wizard-step active" data-step="1">
-      <h3>1. Fecha de recibimiento</h3>
-      <p class="helper">Selecciona el producto e ingresa únicamente la fecha en que fue recibido. No se necesita hora.</p>
+    <button id="frCalculateBtn" class="btn primary wide">Calcular FR / FB</button>
+
+    <div id="frManualBox" class="manual-box" hidden>
+      <strong id="frManualTitle">Se necesita la fecha de vencimiento.</strong>
+      <p id="frManualHelp" class="helper"></p>
+      <label class="field">
+        <span>Fecha de vencimiento (FB/FV)</span>
+        <input id="frManualExpiry" type="date">
+      </label>
+      <button id="frConfirmManualBtn" class="btn primary">Confirmar fecha</button>
+    </div>
+
+    <div id="frResult" class="result-panel" hidden>
+      <div class="result-top">
+        <div>
+          <span class="status-badge ok">FR / FB</span>
+          <h3 id="frResultProduct">Producto</h3>
+          <p id="frResultRule"></p>
+        </div>
+        <div class="remaining">
+          <span>Vencimiento</span>
+          <strong id="frResultExpiry">—</strong>
+        </div>
+      </div>
+
+      <div class="result-grid">
+        <div class="metric"><span>Recibido</span><strong id="frResultReceived">—</strong></div>
+        <div class="metric"><span>Vida útil</span><strong id="frResultLife">—</strong></div>
+        <div class="metric"><span>Días restantes</span><strong id="frResultRemaining">—</strong></div>
+      </div>
+
+      <div class="actions">
+        <button id="frSaveBtn" class="btn secondary">Guardar</button>
+        <button id="continueToProcessBtn" class="btn primary grow">Continuar a PREP / PROD</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="preprodSection" class="card calculator-section" hidden>
+    <div class="section-title">
+      <div>
+        <span class="section-kicker">SECCIÓN 2</span>
+        <h2>PREP / PROD</h2>
+        <p>Esta sección funciona sola. Selecciona el producto y calcula preparación o producción.</p>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label class="field span-2">
+        <span>Producto</span>
+        <select id="ppProduct"></select>
+      </label>
+    </div>
+
+    <div class="choice-grid compact-choice">
+      <button class="choice-card pp-choice" data-stage="PREP">
+        <span class="choice-icon">PREP</span>
+        <strong>Preparación</strong>
+        <small>Usa “En cámara fría / preparado”.</small>
+      </button>
+      <button class="choice-card pp-choice" data-stage="PROD">
+        <span class="choice-icon">PROD</span>
+        <strong>Producción</strong>
+        <small>Usa “Línea producción”.</small>
+      </button>
+    </div>
+
+    <div id="ppFields" hidden>
+      <div id="ppRuleBox" class="rule-box">
+        <div class="rule-head">
+          <span id="ppRuleKicker" class="rule-kicker">REGLA</span>
+          <strong id="ppRuleTitle">—</strong>
+        </div>
+        <p id="ppRuleText"></p>
+      </div>
 
       <div class="form-grid">
-        <label class="field span-2">
-          <span>Producto</span>
-          <select id="productSelect"></select>
+        <label class="field">
+          <span id="ppDateLabel">Fecha</span>
+          <input id="ppDate" type="date">
         </label>
         <label class="field">
-          <span>Fecha de recibimiento (FR)</span>
-          <input id="receivedDate" type="date">
+          <span id="ppTimeLabel">Hora</span>
+          <input id="ppTime" type="time">
         </label>
       </div>
 
-      <button id="validateReceiptBtn" class="btn primary wide">Calcular vencimiento del producto recibido</button>
-
-      <div id="closedRuleBox" class="rule-box" hidden>
-        <div class="rule-head">
-          <span class="rule-kicker">CERRADO · FR/FV · EN CÁMARA FRÍA</span>
-          <strong id="closedRuleTitle">—</strong>
-        </div>
-        <p id="closedRuleText"></p>
-
-        <div id="closedExpiryAuto" class="calculated-date" hidden>
-          <span>Fecha de vencimiento del producto recibido</span>
-          <strong id="closedExpiryAutoValue">—</strong>
-        </div>
-
-        <div id="closedManualWrap" class="manual-box" hidden>
-          <strong id="closedManualTitle">Este producto necesita una fecha de vencimiento ingresada por el usuario.</strong>
-          <p id="closedManualHelp" class="helper"></p>
-          <label class="field">
-            <span>Fecha de vencimiento del producto</span>
-            <input id="closedExpiryDate" type="date">
-          </label>
-          <button id="confirmClosedBtn" class="btn primary">Confirmar fecha</button>
-        </div>
-
-        <button id="continueStageBtn" class="btn secondary wide" hidden>Continuar</button>
-      </div>
-    </div>
-
-    <div class="wizard-step" data-step="2">
-      <h3>2. ¿Para qué se usará el Meilan?</h3>
-      <p class="helper">Elige una opción. Cada una usa una columna distinta de la planilla.</p>
-
-      <div class="choice-grid">
-        <button class="choice-card" data-stage-choice="PREP">
-          <span class="choice-icon">PREP</span>
-          <strong>Preparación</strong>
-          <small>Usa la vida útil de “En cámara fría / preparado”.</small>
-        </button>
-        <button class="choice-card" data-stage-choice="PROD">
-          <span class="choice-icon">PROD</span>
-          <strong>Producción</strong>
-          <small>Usa la vida útil de “Línea producción”.</small>
-        </button>
-      </div>
-
-      <button class="btn ghost wide" data-back="1">Volver</button>
-    </div>
-
-    <div class="wizard-step" data-step="3">
-      <h3 id="processHeading">3. Datos del proceso</h3>
-      <p id="processHelper" class="helper"></p>
-
-      <div id="processRuleBox" class="rule-box">
-        <div class="rule-head">
-          <span id="processRuleKicker" class="rule-kicker">REGLA</span>
-          <strong id="processRuleTitle">—</strong>
-        </div>
-        <p id="processRuleText"></p>
-      </div>
-
-      <div class="form-grid">
+      <div id="ppUseByBox" class="manual-box" hidden>
+        <strong>La planilla indica “Uso por fecha”.</strong>
+        <p class="helper">Ingresa la fecha de vencimiento del producto para usarla como vencimiento de esta etapa.</p>
         <label class="field">
-          <span id="processDateLabel">Fecha</span>
-          <input id="processDate" type="date">
-        </label>
-        <label class="field">
-          <span id="processTimeLabel">Hora</span>
-          <input id="processTime" type="time">
+          <span>Fecha de vencimiento del producto</span>
+          <input id="ppUseByDate" type="date">
         </label>
       </div>
 
-      <div id="manualLifeWrap" class="manual-box" hidden>
-        <strong>La planilla no tiene un tiempo definido para esta etapa.</strong>
-        <p class="helper">Ingresa manualmente la vida útil para poder calcular el vencimiento.</p>
+      <div id="ppManualLifeBox" class="manual-box" hidden>
+        <strong>La planilla no tiene una duración definida para esta etapa.</strong>
+        <p class="helper">Ingresa manualmente la vida útil.</p>
         <div class="form-grid compact-grid">
           <label class="field">
             <span>Cantidad</span>
-            <input id="manualLifeAmount" type="number" min="1" step="1" inputmode="numeric">
+            <input id="ppManualAmount" type="number" min="1" step="1" inputmode="numeric">
           </label>
           <label class="field">
             <span>Unidad</span>
-            <select id="manualLifeUnit">
+            <select id="ppManualUnit">
               <option value="d">Días</option>
               <option value="h">Horas</option>
             </select>
@@ -146,48 +183,34 @@
         </div>
       </div>
 
-      <div id="useByProcessBox" class="manual-box" hidden>
-        <strong>La planilla indica “Uso por fecha”.</strong>
-        <p class="helper">Se conservará la fecha de vencimiento que quedó definida para el producto recibido.</p>
-        <div class="calculated-date">
-          <span>Fecha que se usará</span>
-          <strong id="useByProcessValue">—</strong>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn ghost" data-back="2">Volver</button>
-        <button id="calculateBtn" class="btn primary grow">Calcular vencimiento</button>
-      </div>
+      <button id="ppCalculateBtn" class="btn primary wide">Calcular vencimiento PREP / PROD</button>
     </div>
 
-    <div class="wizard-step" data-step="4">
+    <div id="ppResult" class="result-panel" hidden>
       <div class="result-top">
         <div>
-          <span id="resultState" class="status-badge neutral">SIN CALCULAR</span>
-          <h2 id="resultProduct">Producto</h2>
-          <p id="resultRule"></p>
+          <span id="ppResultState" class="status-badge neutral">RESULTADO</span>
+          <h3 id="ppResultProduct">Producto</h3>
+          <p id="ppResultRule"></p>
         </div>
         <div class="remaining">
           <span>Tiempo restante</span>
-          <strong id="remainingText">—</strong>
+          <strong id="ppRemaining">—</strong>
         </div>
       </div>
 
       <div class="result-grid">
-        <div class="metric"><span>Fecha de recibimiento</span><strong id="resultReceived">—</strong></div>
-        <div class="metric"><span>Vencimiento del producto recibido</span><strong id="resultClosedExpiry">—</strong></div>
-        <div class="metric"><span>Tipo</span><strong id="resultStage">—</strong></div>
-        <div class="metric"><span>Fecha y hora del proceso</span><strong id="resultStart">—</strong></div>
-        <div class="metric"><span>Vida útil aplicada</span><strong id="resultLife">—</strong></div>
-        <div class="metric"><span>Vencimiento PREP/PROD</span><strong id="resultOfficialExpiry">—</strong></div>
+        <div class="metric"><span>Tipo</span><strong id="ppResultStage">—</strong></div>
+        <div class="metric"><span>Fecha y hora inicial</span><strong id="ppResultStart">—</strong></div>
+        <div class="metric"><span>Vida útil</span><strong id="ppResultLife">—</strong></div>
+        <div class="metric"><span>Vencimiento</span><strong id="ppResultExpiry">—</strong></div>
       </div>
 
-      <div id="warningBox" class="warning" hidden></div>
+      <div id="ppWarning" class="warning" hidden></div>
 
       <div class="actions">
-        <button id="saveHistoryBtn" class="btn secondary">Guardar revisión</button>
-        <button id="restartBtn" class="btn primary">Nuevo cálculo</button>
+        <button id="ppSaveBtn" class="btn secondary">Guardar</button>
+        <button id="newProcessBtn" class="btn primary">Nuevo cálculo</button>
       </div>
     </div>
   </section>
@@ -196,7 +219,7 @@
     <div class="section-title">
       <div>
         <h2>Historial</h2>
-        <p>Se guarda localmente en este dispositivo.</p>
+        <p>Se guarda localmente en este dispositivo y funciona sin internet.</p>
       </div>
       <button id="clearHistoryBtn" class="btn ghost small">Borrar historial</button>
     </div>
@@ -204,11 +227,9 @@
   </section>
 </main>
 
-<footer>
-  Base: “Tabla de vida útil de productos en tienda”, Chile, actualización 28 de julio de 2026.
-</footer>
+<footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="data.js?v=0.4.2"></script>
-<script src="app.js?v=0.4.2"></script>
+<script src="data.js?v=0.5.0"></script>
+<script src="app.js?v=0.5.0"></script>
 </body>
 </html>
