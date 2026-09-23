@@ -1,12 +1,15 @@
-const CACHE="meilan-v0.4.0";
+const CACHE="meilan-v0.4.1";
 const APP_SHELL=[
   "./",
   "./index.html",
-  "./styles.css?v=0.4.0",
-  "./data.js?v=0.4.0",
-  "./app.js?v=0.4.0",
+  "./styles.css?v=0.4.1",
+  "./data.js?v=0.4.1",
+  "./app.js?v=0.4.1",
   "./manifest.webmanifest",
-  "./icon.svg"
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-512-maskable.png"
 ];
 
 self.addEventListener("install",event=>{
