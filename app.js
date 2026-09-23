@@ -48,7 +48,9 @@
     save:$("saveHistoryBtn"),
     restart:$("restartBtn"),
     history:$("historyList"),
-    clearHistory:$("clearHistoryBtn")
+    clearHistory:$("clearHistoryBtn"),
+    networkBadge:$("networkBadge"),
+    installPwaBtn:$("installPwaBtn")
   };
 
   const state = {
@@ -64,6 +66,7 @@
   };
 
   let lastResult = null;
+  let deferredInstallPrompt = null;
 
   function initProducts(){
     els.product.innerHTML = '<option value="">Selecciona un producto</option>';
@@ -459,6 +462,41 @@
     }[c]));
   }
 
+  function updateNetworkStatus(){
+    if(!els.networkBadge) return;
+    const online=navigator.onLine;
+    els.networkBadge.textContent=online?"En línea":"Sin internet";
+    els.networkBadge.className="pill "+(online?"ok":"soon");
+  }
+
+  function setupPwaInstall(){
+    updateNetworkStatus();
+    window.addEventListener("online",updateNetworkStatus);
+    window.addEventListener("offline",updateNetworkStatus);
+
+    window.addEventListener("beforeinstallprompt",event=>{
+      event.preventDefault();
+      deferredInstallPrompt=event;
+      if(els.installPwaBtn) els.installPwaBtn.hidden=false;
+    });
+
+    window.addEventListener("appinstalled",()=>{
+      deferredInstallPrompt=null;
+      if(els.installPwaBtn) els.installPwaBtn.hidden=true;
+    });
+
+    els.installPwaBtn?.addEventListener("click",async()=>{
+      if(!deferredInstallPrompt){
+        alert("Si ya instalaste Meilan, ábrela desde el icono de tu teléfono. Si no aparece el botón de instalación, usa el menú del navegador y elige “Instalar app” o “Agregar a pantalla principal”.");
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch{}
+      deferredInstallPrompt=null;
+      els.installPwaBtn.hidden=true;
+    });
+  }
+
   els.validateReceipt.addEventListener("click",validateReceipt);
   els.confirmClosed.addEventListener("click",confirmClosed);
   els.continueStage.addEventListener("click",()=>goStep(2));
@@ -494,8 +532,11 @@
   renderHistory();
   resetClosedUI();
   goStep(1);
+  setupPwaInstall();
 
   if("serviceWorker" in navigator){
-    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"})
+      .then(reg=>reg.update())
+      .catch(()=>{});
   }
 })();
