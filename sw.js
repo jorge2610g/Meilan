@@ -1,10 +1,10 @@
-const CACHE="meilan-v0.5.1";
+const CACHE="meilan-v0.5.2";
 const APP_SHELL=[
   "./",
   "./index.html",
-  "./styles.css?v=0.5.1",
-  "./data.js?v=0.5.1",
-  "./app.js?v=0.5.1",
+  "./styles.css?v=0.5.2",
+  "./data.js?v=0.5.2",
+  "./app.js?v=0.5.2",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
@@ -38,18 +38,14 @@ self.addEventListener("fetch",event=>{
 
   if(event.request.mode==="navigate"){
     event.respondWith(
-      caches.match("./index.html").then(cached=>{
-        const refresh=fetch(event.request,{cache:"no-store"})
-          .then(response=>{
-            if(response && response.ok){
-              caches.open(CACHE).then(cache=>cache.put("./index.html",response.clone()));
-            }
-            return response;
-          })
-          .catch(()=>null);
-
-        return cached || refresh.then(response=>response || caches.match("./index.html"));
-      })
+      fetch(event.request,{cache:"no-store"})
+        .then(response=>{
+          if(response && response.ok){
+            caches.open(CACHE).then(cache=>cache.put("./index.html",response.clone()));
+          }
+          return response;
+        })
+        .catch(()=>caches.match("./index.html"))
     );
     return;
   }
