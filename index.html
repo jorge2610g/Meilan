@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#991b1b">
+  <meta name="theme-color" content="#991b1b">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="default">\n  <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.3.1">
+  <link rel="stylesheet" href="styles.css?v=0.4.0">
 </head>
 <body>
 <header class="topbar">
@@ -15,7 +15,7 @@
     <h1>Calculadora de vida útil</h1>
     <p>Calcula vencimiento de recepción, preparación y producción según la planilla oficial.</p>
   </div>
-  <span class="version">v0.3.1</span>
+  <div class="top-actions"><span id="networkBadge" class="pill ok">En línea</span><button id="installPwaBtn" class="btn install-btn" hidden>Instalar app</button><span class="version">v0.4.0</span></div>
 </header>
 
 <main class="shell">
@@ -204,7 +204,7 @@
   Base: “Tabla de vida útil de productos en tienda”, Chile, actualización 28 de julio de 2026.
 </footer>
 
-<script src="data.js?v=0.3.1"></script>
-<script src="app.js?v=0.3.1"></script>
+<script src="data.js?v=0.4.0"></script>
+<script src="app.js?v=0.4.0"></script>
 </body>
 </html>
