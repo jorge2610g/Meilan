@@ -3,7 +3,6 @@
   const D = window.MEILAN_DATA;
 
   const els = {
-    showFrfbBtn:$("showFrfbBtn"), showPreprodBtn:$("showPreprodBtn"),
     frfbSection:$("frfbSection"), preprodSection:$("preprodSection"),
     frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
     frCalculateBtn:$("frCalculateBtn"), frManualBox:$("frManualBox"),
@@ -13,7 +12,6 @@
     frResultRule:$("frResultRule"), frResultExpiry:$("frResultExpiry"),
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
-    continueToProcessBtn:$("continueToProcessBtn"),
 
     ppProduct:$("ppProduct"), ppFields:$("ppFields"),
     ppRuleBox:$("ppRuleBox"), ppRuleKicker:$("ppRuleKicker"),
@@ -119,15 +117,6 @@
   }
   function escapeHTML(s){
     return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-
-  function showMode(mode){
-    const fr=mode==="fr";
-    els.frfbSection.hidden=!fr;
-    els.preprodSection.hidden=fr;
-    els.showFrfbBtn.classList.toggle("active",fr);
-    els.showPreprodBtn.classList.toggle("active",!fr);
-    (fr?els.frfbSection:els.preprodSection).scrollIntoView({behavior:"smooth",block:"start"});
   }
 
   function calculateFr(){
@@ -290,13 +279,6 @@
     };
   }
 
-  function continueToProcess(){
-    if(state.frProductIndex==null) return;
-    els.ppProduct.value=String(state.frProductIndex);
-    if(state.frExpiry) els.ppUseByDate.value=state.frExpiry.toISOString().slice(0,10);
-    showMode("pp");
-  }
-
   function resetPp(){
     state.ppStage=null; state.ppRule=null; state.ppExpiry=null;
     els.ppDate.value=""; els.ppTime.value=""; els.ppUseByDate.value="";
@@ -378,12 +360,8 @@
     detectInstalledPwa();
   }
 
-  els.showFrfbBtn.addEventListener("click",()=>showMode("fr"));
-  els.showPreprodBtn.addEventListener("click",()=>showMode("pp"));
-
   els.frCalculateBtn.addEventListener("click",calculateFr);
   els.frConfirmManualBtn.addEventListener("click",confirmFrManual);
-  els.continueToProcessBtn.addEventListener("click",continueToProcess);
   els.frSaveBtn.addEventListener("click",()=>{if(lastFrResult)historySave(lastFrResult);});
 
   document.querySelectorAll(".pp-choice").forEach(btn=>btn.addEventListener("click",()=>choosePpStage(btn.dataset.stage)));
@@ -401,8 +379,6 @@
   populateSelect(els.ppProduct);
   renderHistory();
   setupPwaInstall();
-  showMode("fr");
-
   if("serviceWorker" in navigator){
     navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});
   }
