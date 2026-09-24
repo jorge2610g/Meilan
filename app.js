@@ -492,6 +492,7 @@
   });
 
   els.frProduct?.addEventListener("change",()=>{
+    if(els.frProduct.value==="") return;
     const i=Number(els.frProduct.value);
     if(Number.isInteger(i) && D.products[i]){
       els.frProductSearch.value=D.products[i].n;
@@ -500,6 +501,7 @@
   });
 
   els.ppProduct?.addEventListener("change",()=>{
+    if(els.ppProduct.value==="") return;
     const i=Number(els.ppProduct.value);
     if(Number.isInteger(i) && D.products[i]){
       els.ppProductSearch.value=D.products[i].n;
