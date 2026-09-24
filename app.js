@@ -112,6 +112,28 @@
     select.dispatchEvent(new Event("change",{bubbles:true}));
   }
 
+  function syncTypedProduct(input,select){
+    const term=normalizeSearch(input.value);
+    if(!term){
+      select.value="";
+      return null;
+    }
+
+    const exactIndex=D.products.findIndex(p=>normalizeSearch(p.n)===term);
+    if(exactIndex>=0){
+      select.value=String(exactIndex);
+      return exactIndex;
+    }
+
+    if(select.value!==""){
+      const current=D.products[Number(select.value)];
+      if(!current || normalizeSearch(current.n)!==term){
+        select.value="";
+      }
+    }
+    return null;
+  }
+
   function renderSearchResults(input,resultsBox,select,showAll=false){
     const query=input.value;
     const matches=getProductMatches(showAll && !normalizeSearch(query) ? "" : query);
@@ -152,11 +174,7 @@
     });
 
     input.addEventListener("input",()=>{
-      const currentIndex=select.value;
-      const current=currentIndex!=="" ? D.products[Number(currentIndex)] : null;
-      if(!current || normalizeSearch(current.n)!==normalizeSearch(input.value)){
-        select.value="";
-      }
+      syncTypedProduct(input,select);
       renderSearchResults(input,resultsBox,select,false);
     });
 
@@ -219,6 +237,10 @@
       if(Number.isInteger(i) && D.products[i]){
         input.value=D.products[i].n;
         closeProductResults(input,resultsBox);
+
+        if(select===els.ppProduct && state.ppStage){
+          choosePpStage(state.ppStage);
+        }
       }
     });
 
@@ -290,7 +312,8 @@
   }
 
   function calculateFr(){
-    if(els.frProduct.value===""){ alert("Selecciona un producto."); return; }
+    syncTypedProduct(els.frProductSearch,els.frProduct);
+    if(els.frProduct.value===""){ alert("Selecciona uno de los productos que aparecen en la búsqueda."); return; }
     const received=dateOnly(els.frReceivedDate.value);
     if(!received){ alert("Ingresa la fecha de recibimiento."); return; }
 
@@ -351,7 +374,8 @@
   }
 
   function choosePpStage(stage){
-    if(els.ppProduct.value===""){ alert("Selecciona el producto antes de elegir PREP o PROD."); return; }
+    syncTypedProduct(els.ppProductSearch,els.ppProduct);
+    if(els.ppProduct.value===""){ alert("Selecciona uno de los productos que aparecen en la búsqueda antes de elegir PREP o PROD."); return; }
 
     state.ppStage=stage;
     const p=D.products[Number(els.ppProduct.value)];
@@ -393,7 +417,8 @@
   }
 
   function calculatePp(){
-    if(els.ppProduct.value===""){ alert("Selecciona un producto."); return; }
+    syncTypedProduct(els.ppProductSearch,els.ppProduct);
+    if(els.ppProduct.value===""){ alert("Selecciona uno de los productos que aparecen en la búsqueda."); return; }
     if(!state.ppStage){ alert("Selecciona Preparación o Producción."); return; }
 
     const start=dateTime(els.ppDate.value,els.ppTime.value);
