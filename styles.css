@@ -91,3 +91,13 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
 .reload-btn{background:#fff;color:#7f1d1d;border:1px solid rgba(255,255,255,.55);padding:8px 12px;border-radius:999px}
 .reload-btn:disabled{opacity:.65}
 @media(max-width:700px){.reload-btn{padding:8px 10px}}
+
+.product-search{
+  background:#fffdfd !important;
+  border:1.5px solid #d6d3d1 !important;
+  padding-left:14px !important;
+}
+.product-search:focus{
+  outline:2px solid rgba(185,28,28,.16);
+  border-color:var(--red2) !important;
+}
