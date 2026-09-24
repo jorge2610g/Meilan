@@ -4,7 +4,7 @@
 
   const els = {
     frfbSection:$("frfbSection"), preprodSection:$("preprodSection"),
-    frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
+    frProductSearch:$("frProductSearch"), frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
     frCalculateBtn:$("frCalculateBtn"), frManualBox:$("frManualBox"),
     frManualTitle:$("frManualTitle"), frManualHelp:$("frManualHelp"),
     frManualExpiry:$("frManualExpiry"), frConfirmManualBtn:$("frConfirmManualBtn"),
@@ -13,7 +13,7 @@
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
 
-    ppProduct:$("ppProduct"), ppFields:$("ppFields"),
+    ppProductSearch:$("ppProductSearch"), ppProduct:$("ppProduct"), ppFields:$("ppFields"),
     ppRuleBox:$("ppRuleBox"), ppRuleKicker:$("ppRuleKicker"),
     ppRuleTitle:$("ppRuleTitle"), ppRuleText:$("ppRuleText"),
     ppDateLabel:$("ppDateLabel"), ppTimeLabel:$("ppTimeLabel"),
@@ -42,22 +42,52 @@
   let lastFrResult = null;
   let lastPpResult = null;
 
-  function populateSelect(select){
+  function normalizeSearch(value){
+    return String(value||"")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase()
+      .trim();
+  }
+
+  function populateSelect(select,query=""){
+    const previous=select.value;
+    const term=normalizeSearch(query);
     select.innerHTML='<option value="">Selecciona un producto</option>';
+
     const groups={};
     D.products.forEach((p,i)=>{
+      const searchable=normalizeSearch(p.g+" "+p.n);
+      if(term && !searchable.includes(term)) return;
       if(!groups[p.g]) groups[p.g]=[];
       groups[p.g].push({p,i});
     });
+
+    let count=0;
     Object.entries(groups).forEach(([group,items])=>{
       const og=document.createElement("optgroup");
       og.label=group;
       items.forEach(({p,i})=>{
         const o=document.createElement("option");
-        o.value=String(i); o.textContent=p.n; og.appendChild(o);
+        o.value=String(i);
+        o.textContent=p.n;
+        og.appendChild(o);
+        count++;
       });
       select.appendChild(og);
     });
+
+    if(!count){
+      const o=document.createElement("option");
+      o.value="";
+      o.textContent="No se encontraron productos";
+      o.disabled=true;
+      select.appendChild(o);
+    }
+
+    if(previous && [...select.options].some(o=>o.value===previous)){
+      select.value=previous;
+    }
   }
 
   function parseRule(code){
@@ -405,6 +435,14 @@
 
   populateSelect(els.frProduct);
   populateSelect(els.ppProduct);
+
+  els.frProductSearch?.addEventListener("input",()=>{
+    populateSelect(els.frProduct,els.frProductSearch.value);
+  });
+
+  els.ppProductSearch?.addEventListener("input",()=>{
+    populateSelect(els.ppProduct,els.ppProductSearch.value);
+  });
   renderHistory();
   setupPwaInstall();
   if("serviceWorker" in navigator){
