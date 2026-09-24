@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.5.4">
+  <link rel="stylesheet" href="styles.css?v=0.5.5">
 </head>
 <body>
 <header class="topbar">
@@ -24,7 +24,7 @@
     <button id="reloadAppBtn" class="btn reload-btn" type="button" title="Recargar y buscar actualizaciones">↻ Recargar</button>
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.5.4</span>
+    <span class="version">v0.5.5</span>
   </div>
 </header>
 
@@ -39,15 +39,18 @@
     </div>
 
     <div class="form-grid">
-      <div class="field span-2">
-        <span>Buscar producto</span>
-        <input id="frProductSearch" class="product-search" type="search" placeholder="Ej. tomate, queso, salsa..." autocomplete="off">
-        <div id="frSearchResults" class="search-results" hidden></div>
-      </div>
-      <label class="field span-2">
+      <div class="field span-2 product-combobox" id="frProductCombo">
         <span>Producto</span>
-        <select id="frProduct"></select>
-      </label>
+        <div class="combo-input-wrap">
+          <input id="frProductSearch" class="product-search combo-input" type="search"
+            placeholder="Seleccionar o buscar producto..."
+            autocomplete="off" role="combobox"
+            aria-autocomplete="list" aria-controls="frSearchResults" aria-expanded="false">
+          <button id="frComboToggle" class="combo-toggle" type="button" aria-label="Mostrar productos">⌄</button>
+        </div>
+        <select id="frProduct" class="product-hidden-select" tabindex="-1" aria-hidden="true"></select>
+        <div id="frSearchResults" class="search-results combo-results" role="listbox" hidden></div>
+      </div>
       <label class="field">
         <span>Fecha de recibimiento (FR)</span>
         <input id="frReceivedDate" type="date">
@@ -101,15 +104,18 @@
     </div>
 
     <div class="form-grid">
-      <div class="field span-2">
-        <span>Buscar producto</span>
-        <input id="ppProductSearch" class="product-search" type="search" placeholder="Ej. tomate, queso, salsa..." autocomplete="off">
-        <div id="ppSearchResults" class="search-results" hidden></div>
-      </div>
-      <label class="field span-2">
+      <div class="field span-2 product-combobox" id="ppProductCombo">
         <span>Producto</span>
-        <select id="ppProduct"></select>
-      </label>
+        <div class="combo-input-wrap">
+          <input id="ppProductSearch" class="product-search combo-input" type="search"
+            placeholder="Seleccionar o buscar producto..."
+            autocomplete="off" role="combobox"
+            aria-autocomplete="list" aria-controls="ppSearchResults" aria-expanded="false">
+          <button id="ppComboToggle" class="combo-toggle" type="button" aria-label="Mostrar productos">⌄</button>
+        </div>
+        <select id="ppProduct" class="product-hidden-select" tabindex="-1" aria-hidden="true"></select>
+        <div id="ppSearchResults" class="search-results combo-results" role="listbox" hidden></div>
+      </div>
     </div>
 
     <div class="choice-grid compact-choice">
@@ -218,7 +224,7 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="data.js?v=0.5.4"></script>
-<script src="app.js?v=0.5.4"></script>
+<script src="data.js?v=0.5.5"></script>
+<script src="app.js?v=0.5.5"></script>
 </body>
 </html>
