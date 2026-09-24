@@ -10,6 +10,7 @@
     frManualExpiry:$("frManualExpiry"), frConfirmManualBtn:$("frConfirmManualBtn"),
     frResult:$("frResult"), frResultProduct:$("frResultProduct"),
     frResultRule:$("frResultRule"), frResultExpiry:$("frResultExpiry"),
+    frResultExpiryCard:$("frResultExpiryCard"),
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
 
@@ -360,11 +361,14 @@
       source==="planilla"?"Calculado automáticamente con la columna Cerrado · FR/FV · En cámara fría.":
       source==="uso-por-fecha"?"Fecha tomada del vencimiento indicado por el usuario.":
       "Fecha de vencimiento ingresada manualmente.";
-    els.frResultExpiry.textContent=formatDate(expiry);
+    const expiryText=formatDate(expiry);
+    els.frResultExpiry.textContent=expiryText;
+    els.frResultExpiryCard.textContent=expiryText;
     els.frResultReceived.textContent=formatDate(state.frReceived);
     els.frResultLife.textContent=rule?.type==="duration"?rule.text:(source==="uso-por-fecha"?"Uso por fecha":"Manual");
     const days=(expiry-state.frReceived)/86400000;
     els.frResultRemaining.textContent=(days>=0?Math.ceil(days):0)+" días";
+    requestAnimationFrame(()=>els.frResult.scrollIntoView({behavior:"smooth",block:"nearest"}));
 
     lastFrResult={
       type:"FR/FB", product:p.n, received:state.frReceived.toISOString(),
