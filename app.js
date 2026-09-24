@@ -13,6 +13,7 @@
     frResultFormula:$("frResultFormula"),
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
+    frResetBtn:$("frResetBtn"),
 
     ppProductSearch:$("ppProductSearch"), ppSearchResults:$("ppSearchResults"), ppComboToggle:$("ppComboToggle"), ppProduct:$("ppProduct"), ppFields:$("ppFields"),
     ppRuleBox:$("ppRuleBox"), ppRuleKicker:$("ppRuleKicker"),
@@ -354,6 +355,37 @@
     renderFrResult(p,state.frRule,expiry,state.frRule?.type==="use"?"uso-por-fecha":"manual");
   }
 
+  function resetFr(){
+    state.frRule=null;
+    state.frExpiry=null;
+    state.frProductIndex=null;
+    state.frReceived=null;
+    lastFrResult=null;
+
+    els.frProductSearch.value="";
+    els.frProduct.value="";
+    els.frReceivedDate.value="";
+    els.frManualExpiry.value="";
+    els.frManualBox.hidden=true;
+    els.frResult.hidden=true;
+    els.frSearchResults.hidden=true;
+    els.frSearchResults.innerHTML="";
+    els.frProductSearch.setAttribute("aria-expanded","false");
+
+    els.frResultProduct.textContent="Producto";
+    els.frResultRule.textContent="";
+    els.frResultExpiry.textContent="—";
+    els.frResultFormula.textContent="—";
+    els.frResultReceived.textContent="—";
+    els.frResultLife.textContent="—";
+    els.frResultRemaining.textContent="—";
+
+    requestAnimationFrame(()=>{
+      els.frfbSection.scrollIntoView({behavior:"smooth",block:"start"});
+      setTimeout(()=>els.frProductSearch.focus(),300);
+    });
+  }
+
   function renderFrResult(p,rule,expiry,source){
     els.frResult.hidden=false;
     els.frResultProduct.textContent=p.n;
@@ -593,6 +625,7 @@
   els.frCalculateBtn.addEventListener("click",calculateFr);
   els.frConfirmManualBtn.addEventListener("click",confirmFrManual);
   els.frSaveBtn.addEventListener("click",()=>{if(lastFrResult)historySave(lastFrResult);});
+  els.frResetBtn?.addEventListener("click",resetFr);
 
   document.querySelectorAll(".pp-choice").forEach(btn=>btn.addEventListener("click",()=>choosePpStage(btn.dataset.stage)));
   els.ppCalculateBtn.addEventListener("click",calculatePp);
