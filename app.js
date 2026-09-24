@@ -10,7 +10,7 @@
     frManualExpiry:$("frManualExpiry"), frConfirmManualBtn:$("frConfirmManualBtn"),
     frResult:$("frResult"), frResultProduct:$("frResultProduct"),
     frResultRule:$("frResultRule"), frResultExpiry:$("frResultExpiry"),
-    frResultExpiryCard:$("frResultExpiryCard"),
+    frResultFormula:$("frResultFormula"),
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
 
@@ -362,12 +362,17 @@
       source==="uso-por-fecha"?"Fecha tomada del vencimiento indicado por el usuario.":
       "Fecha de vencimiento ingresada manualmente.";
     const expiryText=formatDate(expiry);
+    const receivedText=formatDate(state.frReceived);
     els.frResultExpiry.textContent=expiryText;
-    els.frResultExpiryCard.textContent=expiryText;
-    els.frResultReceived.textContent=formatDate(state.frReceived);
+    els.frResultReceived.textContent=receivedText;
     els.frResultLife.textContent=rule?.type==="duration"?rule.text:(source==="uso-por-fecha"?"Uso por fecha":"Manual");
     const days=(expiry-state.frReceived)/86400000;
-    els.frResultRemaining.textContent=(days>=0?Math.ceil(days):0)+" días";
+    const daysText=(days>=0?Math.ceil(days):0)+" días";
+    els.frResultRemaining.textContent=daysText;
+    els.frResultFormula.textContent=
+      rule?.type==="duration"
+        ? receivedText+" + "+rule.amount+" "+(rule.unit==="d"?(rule.amount===1?"día":"días"):(rule.amount===1?"hora":"horas"))+" = "+expiryText
+        : expiryText;
     requestAnimationFrame(()=>els.frResult.scrollIntoView({behavior:"smooth",block:"nearest"}));
 
     lastFrResult={
