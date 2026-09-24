@@ -177,3 +177,18 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
 @media(max-width:700px){
   .combo-results{max-height:260px}
 }
+
+.fr-expiry-highlight{
+  padding:12px 14px;
+  border-radius:14px;
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+}
+.fr-expiry-highlight span{color:#166534 !important;font-weight:800}
+.fr-expiry-highlight strong{color:#166534;font-size:26px !important}
+.expiry-metric{
+  background:#f0fdf4 !important;
+  border-color:#bbf7d0 !important;
+}
+.expiry-metric span{color:#166534 !important;font-weight:800}
+.expiry-metric strong{color:#166534;font-size:18px !important}
