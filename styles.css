@@ -192,3 +192,26 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
 }
 .expiry-metric span{color:#166534 !important;font-weight:800}
 .expiry-metric strong{color:#166534;font-size:18px !important}
+
+.fr-result-tools{display:flex;align-items:flex-start;gap:8px}
+.result-close-btn{
+  width:34px;
+  height:34px;
+  border:0;
+  border-radius:999px;
+  background:#fee2e2;
+  color:#991b1b;
+  font-size:24px;
+  line-height:1;
+  font-weight:800;
+  cursor:pointer;
+  flex:0 0 auto;
+}
+.result-close-btn:hover,.result-close-btn:focus-visible{
+  background:#fecaca;
+  outline:2px solid rgba(153,27,27,.15);
+}
+@media(max-width:700px){
+  .fr-result-tools{width:100%;justify-content:space-between}
+  .result-close-btn{order:2}
+}
