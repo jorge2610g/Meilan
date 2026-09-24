@@ -4,7 +4,7 @@
 
   const els = {
     frfbSection:$("frfbSection"), preprodSection:$("preprodSection"),
-    frProductSearch:$("frProductSearch"), frSearchResults:$("frSearchResults"), frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
+    frProductSearch:$("frProductSearch"), frSearchResults:$("frSearchResults"), frComboToggle:$("frComboToggle"), frProduct:$("frProduct"), frReceivedDate:$("frReceivedDate"),
     frCalculateBtn:$("frCalculateBtn"), frManualBox:$("frManualBox"),
     frManualTitle:$("frManualTitle"), frManualHelp:$("frManualHelp"),
     frManualExpiry:$("frManualExpiry"), frConfirmManualBtn:$("frConfirmManualBtn"),
@@ -13,7 +13,7 @@
     frResultReceived:$("frResultReceived"), frResultLife:$("frResultLife"),
     frResultRemaining:$("frResultRemaining"), frSaveBtn:$("frSaveBtn"),
 
-    ppProductSearch:$("ppProductSearch"), ppSearchResults:$("ppSearchResults"), ppProduct:$("ppProduct"), ppFields:$("ppFields"),
+    ppProductSearch:$("ppProductSearch"), ppSearchResults:$("ppSearchResults"), ppComboToggle:$("ppComboToggle"), ppProduct:$("ppProduct"), ppFields:$("ppFields"),
     ppRuleBox:$("ppRuleBox"), ppRuleKicker:$("ppRuleKicker"),
     ppRuleTitle:$("ppRuleTitle"), ppRuleText:$("ppRuleText"),
     ppDateLabel:$("ppDateLabel"), ppTimeLabel:$("ppTimeLabel"),
@@ -52,27 +52,37 @@
 
   function getProductMatches(query){
     const term=normalizeSearch(query);
-    if(!term) return [];
+
     return D.products
-      .map((p,i)=>({p,i,searchable:normalizeSearch(p.g+" "+p.n)}))
-      .filter(x=>x.searchable.includes(term))
-      .slice(0,12);
+      .map((p,i)=>{
+        const name=normalizeSearch(p.n);
+        const group=normalizeSearch(p.g);
+        let score=9;
+
+        if(!term) score=5;
+        else if(name===term) score=0;
+        else if(name.startsWith(term)) score=1;
+        else if(name.split(/\s+/).some(word=>word.startsWith(term))) score=2;
+        else if(name.includes(term)) score=3;
+        else if(group.includes(term)) score=4;
+
+        return {p,i,name,group,score};
+      })
+      .filter(x=>!term || x.score<9)
+      .sort((a,b)=>a.score-b.score || a.p.n.localeCompare(b.p.n,"es"))
+      .slice(0,50);
   }
 
-  function populateSelect(select,query=""){
+  function populateSelect(select){
     const previous=select.value;
-    const term=normalizeSearch(query);
     select.innerHTML='<option value="">Selecciona un producto</option>';
 
     const groups={};
     D.products.forEach((p,i)=>{
-      const searchable=normalizeSearch(p.g+" "+p.n);
-      if(term && !searchable.includes(term)) return;
       if(!groups[p.g]) groups[p.g]=[];
       groups[p.g].push({p,i});
     });
 
-    let count=0;
     Object.entries(groups).forEach(([group,items])=>{
       const og=document.createElement("optgroup");
       og.label=group;
@@ -81,59 +91,142 @@
         o.value=String(i);
         o.textContent=p.n;
         og.appendChild(o);
-        count++;
       });
       select.appendChild(og);
     });
 
-    if(!count){
-      const o=document.createElement("option");
-      o.value="";
-      o.textContent="No se encontraron productos";
-      o.disabled=true;
-      select.appendChild(o);
-    }
-
     if(previous && [...select.options].some(o=>o.value===previous)){
       select.value=previous;
     }
-    return count;
   }
 
-  function renderSearchResults(input,resultsBox,select){
+  function closeProductResults(input,resultsBox){
+    resultsBox.hidden=true;
+    input.setAttribute("aria-expanded","false");
+  }
+
+  function selectProductMatch(input,resultsBox,select,item){
+    input.value=item.p.n;
+    select.value=String(item.i);
+    closeProductResults(input,resultsBox);
+    select.dispatchEvent(new Event("change",{bubbles:true}));
+  }
+
+  function renderSearchResults(input,resultsBox,select,showAll=false){
     const query=input.value;
-    const matches=getProductMatches(query);
-
-    populateSelect(select,query);
-
-    if(!normalizeSearch(query)){
-      resultsBox.hidden=true;
-      resultsBox.innerHTML="";
-      return;
-    }
-
-    resultsBox.hidden=false;
-    if(!matches.length){
-      resultsBox.innerHTML='<div class="search-empty">No se encontraron productos</div>';
-      select.value="";
-      return;
-    }
+    const matches=getProductMatches(showAll && !normalizeSearch(query) ? "" : query);
 
     resultsBox.innerHTML="";
-    matches.forEach(({p,i})=>{
+    resultsBox.hidden=false;
+    input.setAttribute("aria-expanded","true");
+
+    if(!matches.length){
+      select.value="";
+      resultsBox.innerHTML='<div class="search-empty">No se encontraron productos</div>';
+      return;
+    }
+
+    matches.forEach((item,index)=>{
       const btn=document.createElement("button");
       btn.type="button";
       btn.className="search-result-item";
-      btn.innerHTML='<strong>'+escapeHTML(p.n)+'</strong><small>'+escapeHTML(p.g)+'</small>';
-      btn.addEventListener("click",()=>{
-        input.value=p.n;
-        populateSelect(select,p.n);
-        select.value=String(i);
-        resultsBox.hidden=true;
-        resultsBox.innerHTML="";
-        select.dispatchEvent(new Event("change",{bubbles:true}));
-      });
+      btn.setAttribute("role","option");
+      btn.dataset.productIndex=String(item.i);
+      btn.innerHTML='<strong>'+escapeHTML(item.p.n)+'</strong><small>'+escapeHTML(item.p.g)+'</small>';
+      btn.addEventListener("mousedown",e=>e.preventDefault());
+      btn.addEventListener("click",()=>selectProductMatch(input,resultsBox,select,item));
+      if(index===0) btn.dataset.first="true";
       resultsBox.appendChild(btn);
+    });
+  }
+
+  function setupProductCombobox(input,resultsBox,select,toggle){
+    populateSelect(select);
+
+    input.addEventListener("focus",()=>{
+      renderSearchResults(input,resultsBox,select,true);
+    });
+
+    input.addEventListener("click",()=>{
+      renderSearchResults(input,resultsBox,select,true);
+    });
+
+    input.addEventListener("input",()=>{
+      const currentIndex=select.value;
+      const current=currentIndex!=="" ? D.products[Number(currentIndex)] : null;
+      if(!current || normalizeSearch(current.n)!==normalizeSearch(input.value)){
+        select.value="";
+      }
+      renderSearchResults(input,resultsBox,select,false);
+    });
+
+    input.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){
+        closeProductResults(input,resultsBox);
+        input.blur();
+        return;
+      }
+
+      if(event.key==="Enter"){
+        const first=resultsBox.querySelector(".search-result-item");
+        if(first){
+          event.preventDefault();
+          const i=Number(first.dataset.productIndex);
+          if(Number.isInteger(i) && D.products[i]){
+            selectProductMatch(input,resultsBox,select,{p:D.products[i],i});
+          }
+        }
+        return;
+      }
+
+      if(event.key==="ArrowDown"){
+        const first=resultsBox.querySelector(".search-result-item");
+        if(first){
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    resultsBox.addEventListener("keydown",event=>{
+      const items=[...resultsBox.querySelectorAll(".search-result-item")];
+      const current=items.indexOf(document.activeElement);
+      if(event.key==="ArrowDown" && items.length){
+        event.preventDefault();
+        items[Math.min(current+1,items.length-1)].focus();
+      }else if(event.key==="ArrowUp" && items.length){
+        event.preventDefault();
+        if(current<=0) input.focus();
+        else items[current-1].focus();
+      }else if(event.key==="Escape"){
+        closeProductResults(input,resultsBox);
+        input.focus();
+      }
+    });
+
+    toggle?.addEventListener("click",()=>{
+      if(resultsBox.hidden){
+        input.focus();
+        renderSearchResults(input,resultsBox,select,true);
+      }else{
+        closeProductResults(input,resultsBox);
+      }
+    });
+
+    select.addEventListener("change",()=>{
+      if(select.value==="") return;
+      const i=Number(select.value);
+      if(Number.isInteger(i) && D.products[i]){
+        input.value=D.products[i].n;
+        closeProductResults(input,resultsBox);
+      }
+    });
+
+    document.addEventListener("pointerdown",event=>{
+      const combo=input.closest(".product-combobox");
+      if(combo && !combo.contains(event.target)){
+        closeProductResults(input,resultsBox);
+      }
     });
   }
 
@@ -480,34 +573,8 @@
     }
   });
 
-  populateSelect(els.frProduct);
-  populateSelect(els.ppProduct);
-
-  els.frProductSearch?.addEventListener("input",()=>{
-    renderSearchResults(els.frProductSearch,els.frSearchResults,els.frProduct);
-  });
-
-  els.ppProductSearch?.addEventListener("input",()=>{
-    renderSearchResults(els.ppProductSearch,els.ppSearchResults,els.ppProduct);
-  });
-
-  els.frProduct?.addEventListener("change",()=>{
-    if(els.frProduct.value==="") return;
-    const i=Number(els.frProduct.value);
-    if(Number.isInteger(i) && D.products[i]){
-      els.frProductSearch.value=D.products[i].n;
-      els.frSearchResults.hidden=true;
-    }
-  });
-
-  els.ppProduct?.addEventListener("change",()=>{
-    if(els.ppProduct.value==="") return;
-    const i=Number(els.ppProduct.value);
-    if(Number.isInteger(i) && D.products[i]){
-      els.ppProductSearch.value=D.products[i].n;
-      els.ppSearchResults.hidden=true;
-    }
-  });
+  setupProductCombobox(els.frProductSearch,els.frSearchResults,els.frProduct,els.frComboToggle);
+  setupProductCombobox(els.ppProductSearch,els.ppSearchResults,els.ppProduct,els.ppComboToggle);
   renderHistory();
   setupPwaInstall();
   if("serviceWorker" in navigator){
