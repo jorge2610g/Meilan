@@ -1,6 +1,11 @@
 (() => {
   const FIREBASE_VERSION = "12.19.0";
   const cfg = window.MEILAN_CONFIG || {};
+  const billing = cfg.billing || {};
+  const TRIAL_DAYS = Number(billing.trialDays || 7);
+  const PLAN_DAYS = Number(billing.planDays || 30);
+  const PLAN_PRICE_CLP = Number(billing.planPriceClp || 3000);
+  const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const $ = id => document.getElementById(id);
 
   const els = {
@@ -22,14 +27,23 @@
     signedEmail: $("signedInEmail"),
     logoutBtn: $("logoutBtn"),
     subscriptionStatus: $("subscriptionStatus"),
-    plan: $("subscriptionPlan"),
-    requestSubscriptionBtn: $("requestSubscriptionBtn")
+    trialOffer: $("trialOffer"),
+    trialActive: $("trialActive"),
+    trialEndsText: $("trialEndsText"),
+    startTrialBtn: $("startTrialBtn"),
+    paidPlanOffer: $("paidPlanOffer"),
+    planPriceText: $("planPriceText"),
+    buyPlanBtn: $("buyPlanBtn"),
+    paymentSetupNote: $("paymentSetupNote"),
+    activePlan: $("activePlan"),
+    planEndsText: $("planEndsText")
   };
 
   const state = {
     firebaseApp: null,
     auth: null,
     db: null,
+    functions: null,
     user: null,
     subscription: null,
     configured: false,
@@ -39,20 +53,16 @@
 
   function credentialsReady(){
     const f = cfg.firebaseConfig || {};
-    return Boolean(
-      f.apiKey &&
-      f.authDomain &&
-      f.projectId &&
-      f.appId
-    );
+    return Boolean(f.apiKey && f.authDomain && f.projectId && f.appId);
   }
 
   async function loadFirebase(){
     const base = "https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/";
-    const [appApi, authApi, firestoreApi] = await Promise.all([
+    const [appApi, authApi, firestoreApi, functionsApi] = await Promise.all([
       import(base + "firebase-app.js"),
       import(base + "firebase-auth.js"),
-      import(base + "firebase-firestore.js")
+      import(base + "firebase-firestore.js"),
+      import(base + "firebase-functions.js")
     ]);
 
     state.api = {
@@ -69,7 +79,9 @@
       doc: firestoreApi.doc,
       getDoc: firestoreApi.getDoc,
       setDoc: firestoreApi.setDoc,
-      serverTimestamp: firestoreApi.serverTimestamp
+      serverTimestamp: firestoreApi.serverTimestamp,
+      getFunctions: functionsApi.getFunctions,
+      httpsCallable: functionsApi.httpsCallable
     };
   }
 
@@ -89,16 +101,24 @@
       "auth/invalid-email": "El correo electrónico no es válido.",
       "auth/weak-password": "La contraseña no cumple los requisitos de seguridad.",
       "auth/too-many-requests": "Demasiados intentos. Inténtalo nuevamente más tarde.",
-      "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión."
+      "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión.",
+      "functions/unauthenticated": "Debes iniciar sesión para continuar.",
+      "functions/failed-precondition": "El pago todavía no está disponible.",
+      "functions/internal": "No se pudo iniciar el pago. Inténtalo nuevamente."
     };
     return map[code] || error?.message || fallback;
   }
 
   function setBusy(busy){
     state.busy = busy;
-    [els.loginBtn, els.registerBtn, els.logoutBtn, els.requestSubscriptionBtn]
-      .filter(Boolean)
-      .forEach(btn => btn.disabled = busy);
+    [
+      els.loginBtn,
+      els.registerBtn,
+      els.logoutBtn,
+      els.startTrialBtn,
+      els.buyPlanBtn
+    ].filter(Boolean).forEach(btn => btn.disabled = busy);
+    if(els.buyPlanBtn && !billing.mercadoPagoEnabled) els.buyPlanBtn.disabled = true;
   }
 
   function openModal(){
@@ -116,20 +136,71 @@
     else els.modal.hidden = true;
   }
 
-  function subscriptionLabel(){
+  function toDate(value){
+    if(!value) return null;
+    if(typeof value.toDate === "function") return value.toDate();
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function addDays(date, days){
+    return new Date(date.getTime() + days * 86400000);
+  }
+
+  function formatDate(date){
+    if(!date) return "—";
+    return new Intl.DateTimeFormat("es-CL", {
+      day:"2-digit",
+      month:"long",
+      year:"numeric"
+    }).format(date);
+  }
+
+  function trialEndsAt(){
+    const started = toDate(state.subscription?.trial_started_at);
+    return started ? addDays(started, TRIAL_DAYS) : null;
+  }
+
+  function activePlanEndsAt(){
+    return toDate(state.subscription?.current_period_end);
+  }
+
+  function entitlement(){
     const s = state.subscription;
-    if(!s) return {text:"Sin suscripción", cls:"neutral"};
+    const now = Date.now();
+
+    if(!s) return {active:false, kind:"none"};
+
+    if(s.status === "trial"){
+      const end = trialEndsAt();
+      if(end && end.getTime() > now) return {active:true, kind:"trial", end};
+      return {active:false, kind:"trial_expired", end};
+    }
+
+    if(s.status === "active"){
+      const end = activePlanEndsAt();
+      if(!end || end.getTime() > now) return {active:true, kind:"paid", end};
+      return {active:false, kind:"paid_expired", end};
+    }
+
+    return {active:false, kind:s.status || "none"};
+  }
+
+  function subscriptionLabel(){
+    const e = entitlement();
+    if(e.kind === "none") return {text:"Prueba disponible", cls:"soon"};
+    if(e.kind === "trial") return {text:"Prueba gratis activa", cls:"ok"};
+    if(e.kind === "trial_expired") return {text:"Prueba finalizada", cls:"neutral"};
+    if(e.kind === "paid") return {text:"Plan 30 días activo", cls:"ok"};
+    if(e.kind === "paid_expired") return {text:"Plan vencido", cls:"neutral"};
+
     const labels = {
-      pending:"Pendiente de activación",
-      active:"Activa",
-      past_due:"Pago pendiente",
-      canceled:"Cancelada",
-      expired:"Vencida"
+      pending:"Pago pendiente",
+      canceled:"Cancelado",
+      expired:"Vencido",
+      past_due:"Pago pendiente"
     };
-    return {
-      text: labels[s.status] || s.status || "Sin estado",
-      cls: s.status === "active" ? "ok" : s.status === "pending" ? "soon" : "neutral"
-    };
+    return {text:labels[e.kind] || "Plan disponible", cls:e.kind === "pending" ? "soon" : "neutral"};
   }
 
   function verifiedEnough(){
@@ -151,15 +222,21 @@
       locked = true;
       title = "Verifica tu correo";
       text = "Revisa tu bandeja de entrada y confirma tu correo para continuar.";
-    }else if(
-      state.configured &&
-      cfg.requireActiveSubscription === true &&
-      state.user &&
-      state.subscription?.status !== "active"
-    ){
-      locked = true;
-      title = "Suscripción requerida";
-      text = "Tu cuenta necesita una suscripción activa para usar la calculadora.";
+    }else if(state.configured && cfg.requireActiveSubscription === true && state.user){
+      const e = entitlement();
+      if(!e.active){
+        locked = true;
+        if(e.kind === "none"){
+          title = "Activa tu prueba gratis";
+          text = "Tienes 7 días gratis para probar Meilan.";
+        }else if(e.kind === "trial_expired"){
+          title = "Tu prueba gratis terminó";
+          text = "Continúa con el plan de 30 días por $3.000 CLP.";
+        }else{
+          title = "Renueva tu acceso";
+          text = "Activa el plan de 30 días por $3.000 CLP para seguir usando Meilan.";
+        }
+      }
     }
 
     document.body.classList.toggle("auth-locked", locked);
@@ -167,6 +244,43 @@
     if(locked){
       els.gateTitle.textContent = title;
       els.gateText.textContent = text;
+    }
+  }
+
+  function renderPlan(){
+    if(!state.user) return;
+
+    const e = entitlement();
+    const noSubscription = e.kind === "none";
+    const trialActive = e.kind === "trial";
+    const paidActive = e.kind === "paid";
+    const showPaidOffer = !noSubscription && !trialActive && !paidActive;
+
+    if(els.trialOffer) els.trialOffer.hidden = !noSubscription;
+    if(els.trialActive) els.trialActive.hidden = !trialActive;
+    if(els.paidPlanOffer) els.paidPlanOffer.hidden = !showPaidOffer;
+    if(els.activePlan) els.activePlan.hidden = !paidActive;
+
+    if(els.trialEndsText && trialActive){
+      els.trialEndsText.textContent = "Tu prueba termina el " + formatDate(e.end) + ".";
+    }
+
+    if(els.planEndsText && paidActive){
+      els.planEndsText.textContent = e.end
+        ? "Tu acceso está activo hasta el " + formatDate(e.end) + "."
+        : "Tu plan está activo.";
+    }
+
+    if(els.planPriceText){
+      els.planPriceText.textContent = "$" + PLAN_PRICE_CLP.toLocaleString("es-CL") + " CLP";
+    }
+
+    if(els.paymentSetupNote){
+      els.paymentSetupNote.hidden = Boolean(billing.mercadoPagoEnabled);
+    }
+
+    if(els.buyPlanBtn){
+      els.buyPlanBtn.disabled = state.busy || !billing.mercadoPagoEnabled;
     }
   }
 
@@ -189,10 +303,7 @@
       els.subscriptionStatus.className = "status-badge " + badge.cls;
     }
 
-    if(state.subscription?.plan_code && els.plan){
-      els.plan.value = state.subscription.plan_code;
-    }
-
+    renderPlan();
     applyGate();
   }
 
@@ -205,8 +316,8 @@
       const snap = await state.api.getDoc(ref);
       state.subscription = snap.exists() ? snap.data() : null;
     }catch(error){
-      console.warn("No se pudo leer la suscripción de Meilan:", error);
-      setMessage("La cuenta inició sesión, pero no se pudo leer el estado de suscripción.", "warning");
+      console.warn("No se pudo leer el acceso de Meilan:", error);
+      setMessage("La cuenta inició sesión, pero no se pudo leer el estado del plan.", "warning");
     }
   }
 
@@ -241,7 +352,6 @@
         return;
       }
       setMessage("Sesión iniciada correctamente.", "success");
-      closeModal();
     }catch(error){
       setMessage(friendlyError(error, "No se pudo iniciar sesión."), "error");
     }finally{
@@ -273,8 +383,7 @@
         await state.api.signOut(state.auth);
         setMessage("Cuenta creada. Revisa tu correo para verificarla antes de ingresar.", "success");
       }else{
-        setMessage("Cuenta creada e iniciada.", "success");
-        closeModal();
+        setMessage("Cuenta creada. Ya puedes activar tu prueba gratis de 7 días.", "success");
       }
     }catch(error){
       setMessage(friendlyError(error, "No se pudo crear la cuenta."), "error");
@@ -299,46 +408,92 @@
     }
   }
 
-  async function requestSubscription(){
+  async function startTrial(){
     if(!state.db || !state.user || state.busy || !state.api) return;
 
-    const planCode = els.plan?.value;
-    if(!["monthly","annual"].includes(planCode)){
-      setMessage("Selecciona un plan.", "error");
-      return;
-    }
-
-    if(state.subscription?.status === "active"){
-      setMessage("Tu suscripción ya está activa.", "success");
-      return;
-    }
-
     setBusy(true);
-    setMessage("Guardando solicitud…");
+    setMessage("Activando tus 7 días gratis…");
 
     try{
       const ref = state.api.doc(state.db, "meilan_subscriptions", state.user.uid);
       const existing = await state.api.getDoc(ref);
-      const payload = {
-        user_id: state.user.uid,
-        plan_code: planCode,
-        status: "pending",
-        updated_at: state.api.serverTimestamp()
-      };
 
-      if(!existing.exists()){
-        payload.created_at = state.api.serverTimestamp();
+      if(existing.exists()){
+        setMessage("Esta cuenta ya utilizó o tiene configurado un período de acceso.", "warning");
+        return;
       }
 
-      await state.api.setDoc(ref, payload, { merge: true });
+      await state.api.setDoc(ref, {
+        user_id: state.user.uid,
+        plan_code: "trial_7d",
+        status: "trial",
+        trial_started_at: state.api.serverTimestamp(),
+        created_at: state.api.serverTimestamp(),
+        updated_at: state.api.serverTimestamp()
+      });
+
       await loadSubscription();
       render();
-      setMessage("Solicitud de suscripción creada. Queda pendiente de activación.", "success");
+      setMessage("Prueba gratis activada. Tienes 7 días de acceso.", "success");
     }catch(error){
-      setMessage(error?.message || "No se pudo crear la solicitud de suscripción.", "error");
+      console.error("No se pudo activar la prueba:", error);
+      setMessage("No se pudo activar la prueba gratis. Revisa que las reglas nuevas de Firestore estén publicadas.", "error");
     }finally{
       setBusy(false);
+      renderPlan();
     }
+  }
+
+  async function buyPlan(){
+    if(!state.user || !state.functions || state.busy || !state.api) return;
+
+    if(!billing.mercadoPagoEnabled){
+      setMessage("Mercado Pago está preparado, pero falta cargar las credenciales y desplegar el backend.", "warning");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("Abriendo Mercado Pago…");
+
+    try{
+      const createCheckout = state.api.httpsCallable(state.functions, "createMeilanCheckout");
+      const result = await createCheckout({});
+      const checkoutUrl = result?.data?.checkoutUrl;
+
+      if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de pago.");
+
+      window.location.assign(checkoutUrl);
+    }catch(error){
+      console.error("No se pudo abrir Mercado Pago:", error);
+      setMessage(friendlyError(error, "No se pudo iniciar el pago con Mercado Pago."), "error");
+    }finally{
+      setBusy(false);
+      renderPlan();
+    }
+  }
+
+  function handlePaymentReturn(){
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if(!payment) return;
+
+    openModal();
+
+    if(payment === "success"){
+      setMessage("Pago recibido. Estamos confirmándolo con Mercado Pago; tu plan se activará al aprobarse.", "success");
+      setTimeout(async () => {
+        await loadSubscription();
+        render();
+      }, 2500);
+    }else if(payment === "pending"){
+      setMessage("El pago quedó pendiente. El plan se activará cuando Mercado Pago lo apruebe.", "warning");
+    }else if(payment === "failure"){
+      setMessage("El pago no se completó. Puedes intentarlo nuevamente.", "error");
+    }
+
+    params.delete("payment");
+    const rest = params.toString();
+    history.replaceState({}, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
   }
 
   async function init(){
@@ -348,7 +503,8 @@
     els.loginBtn?.addEventListener("click", login);
     els.registerBtn?.addEventListener("click", register);
     els.logoutBtn?.addEventListener("click", logout);
-    els.requestSubscriptionBtn?.addEventListener("click", requestSubscription);
+    els.startTrialBtn?.addEventListener("click", startTrial);
+    els.buyPlanBtn?.addEventListener("click", buyPlan);
 
     els.modal?.addEventListener("click", event => {
       if(event.target === els.modal) closeModal();
@@ -358,7 +514,7 @@
     render();
 
     if(!state.configured){
-      setMessage("El panel ya está preparado para Firebase. Falta conectar el proyecto Firebase dedicado a Meilan.", "warning");
+      setMessage("El panel está preparado para Firebase, pero falta conectar el proyecto.", "warning");
       return;
     }
 
@@ -368,11 +524,14 @@
       state.firebaseApp = state.api.initializeApp(cfg.firebaseConfig);
       state.auth = state.api.getAuth(state.firebaseApp);
       state.db = state.api.getFirestore(state.firebaseApp);
+      state.functions = state.api.getFunctions(state.firebaseApp, FUNCTIONS_REGION);
 
       await state.api.setPersistence(state.auth, state.api.browserLocalPersistence);
 
       state.api.onAuthStateChanged(state.auth, user => {
-        handleUser(user).catch(error => {
+        handleUser(user).then(() => {
+          handlePaymentReturn();
+        }).catch(error => {
           console.error("Error actualizando sesión:", error);
           setMessage("No se pudo actualizar el estado de la cuenta.", "error");
         });
