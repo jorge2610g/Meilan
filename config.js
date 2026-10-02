@@ -1,23 +1,14 @@
 window.MEILAN_CONFIG = {
-  // Pega aquí la configuración Web App del proyecto Firebase dedicado a Meilan.
-  // Estos valores identifican el proyecto cliente; NO pongas claves de Admin SDK
-  // ni credenciales privadas del servidor en este archivo público.
   firebaseConfig: {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: ""
+    apiKey: "AIzaSyAE_nhlqyOvz8wyM8QBMylToOAt7_BJkds",
+    authDomain: "meilan-95042.firebaseapp.com",
+    projectId: "meilan-95042",
+    storageBucket: "meilan-95042.firebasestorage.app",
+    messagingSenderId: "878546909079",
+    appId: "1:878546909079:web:27511e83b786d03e47f6d2",
+    measurementId: "G-YNBY9VX1NC"
   },
-
-  // Cuando Firebase esté configurado, el acceso por correo será obligatorio.
   requireLogin: true,
-
-  // Si se activa, los nuevos usuarios deberán verificar su correo antes de entrar.
   requireVerifiedEmail: false,
-
-  // Déjalo en false hasta conectar un proveedor de pago o activar
-  // las suscripciones manualmente desde administración.
   requireActiveSubscription: false
 };
