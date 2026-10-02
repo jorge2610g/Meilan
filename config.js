@@ -21,7 +21,8 @@ window.MEILAN_CONFIG = {
     planPriceClp: 3000,
     functionsRegion: "southamerica-west1",
 
-    // Cambiar a true después de guardar los secretos y desplegar Functions.
-    mercadoPagoEnabled: false
+    // Activar después de desplegar Cloud Functions.
+    mercadoPagoEnabled: false,
+    adminCredentialSaveEnabled: false
   }
 };
