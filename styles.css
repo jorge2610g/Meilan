@@ -291,5 +291,24 @@ body.auth-locked #appContent{display:none}
 }
 
 
+/* Prueba gratis y plan Mercado Pago v0.8.0 */
+.plan-offer,.plan-state{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:14px;
+  background:#fff;
+}
+.plan-offer p,.plan-state p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.plan-offer small{display:block;margin-top:9px;color:var(--muted);font-size:11px;line-height:1.4}
+.plan-kicker{display:block;font-size:10px;font-weight:900;letter-spacing:.1em;color:var(--red2);margin-bottom:7px}
+.plan-price-row{display:flex;justify-content:space-between;gap:14px;align-items:baseline}
+.plan-price-row strong{font-size:23px}
+.plan-price-row span{font-size:13px;font-weight:800;color:#57534e}
+.trial-offer{background:#fff7f7;border-color:#fecaca}
+.trial-active{background:#f0fdf4;border-color:#bbf7d0}
+.trial-active .plan-kicker,.active-plan .plan-kicker{color:#166534}
+.active-plan{background:#f0fdf4;border-color:#bbf7d0}
+.paid-offer{background:#fff}
+
 /* Respetar estados ocultos controlados por JS */
 [hidden]{display:none!important}
