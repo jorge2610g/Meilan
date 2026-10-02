@@ -1,4 +1,5 @@
 (() => {
+  const FIREBASE_VERSION = "12.19.0";
   const cfg = window.MEILAN_CONFIG || {};
   const $ = id => document.getElementById(id);
 
@@ -26,27 +27,50 @@
   };
 
   const state = {
-    client: null,
+    firebaseApp: null,
+    auth: null,
+    db: null,
     user: null,
     subscription: null,
     configured: false,
-    busy: false
+    busy: false,
+    api: null
   };
 
   function credentialsReady(){
+    const f = cfg.firebaseConfig || {};
     return Boolean(
-      cfg.supabaseUrl &&
-      /^https:\/\//i.test(cfg.supabaseUrl) &&
-      cfg.supabasePublishableKey &&
-      cfg.supabasePublishableKey.length > 20
+      f.apiKey &&
+      f.authDomain &&
+      f.projectId &&
+      f.appId
     );
   }
 
-  function libraryReady(){
-    return Boolean(
-      window.supabase &&
-      typeof window.supabase.createClient === "function"
-    );
+  async function loadFirebase(){
+    const base = "https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/";
+    const [appApi, authApi, firestoreApi] = await Promise.all([
+      import(base + "firebase-app.js"),
+      import(base + "firebase-auth.js"),
+      import(base + "firebase-firestore.js")
+    ]);
+
+    state.api = {
+      initializeApp: appApi.initializeApp,
+      getAuth: authApi.getAuth,
+      setPersistence: authApi.setPersistence,
+      browserLocalPersistence: authApi.browserLocalPersistence,
+      onAuthStateChanged: authApi.onAuthStateChanged,
+      signInWithEmailAndPassword: authApi.signInWithEmailAndPassword,
+      createUserWithEmailAndPassword: authApi.createUserWithEmailAndPassword,
+      sendEmailVerification: authApi.sendEmailVerification,
+      signOut: authApi.signOut,
+      getFirestore: firestoreApi.getFirestore,
+      doc: firestoreApi.doc,
+      getDoc: firestoreApi.getDoc,
+      setDoc: firestoreApi.setDoc,
+      serverTimestamp: firestoreApi.serverTimestamp
+    };
   }
 
   function setMessage(text, type = "info"){
@@ -54,6 +78,20 @@
     els.message.textContent = text || "";
     els.message.className = "account-message " + type;
     els.message.hidden = !text;
+  }
+
+  function friendlyError(error, fallback){
+    const code = error?.code || "";
+    const map = {
+      "auth/invalid-credential": "Correo o contraseña incorrectos.",
+      "auth/user-disabled": "Esta cuenta está deshabilitada.",
+      "auth/email-already-in-use": "Ya existe una cuenta con ese correo.",
+      "auth/invalid-email": "El correo electrónico no es válido.",
+      "auth/weak-password": "La contraseña no cumple los requisitos de seguridad.",
+      "auth/too-many-requests": "Demasiados intentos. Inténtalo nuevamente más tarde.",
+      "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión."
+    };
+    return map[code] || error?.message || fallback;
   }
 
   function setBusy(busy){
@@ -94,6 +132,10 @@
     };
   }
 
+  function verifiedEnough(){
+    return !cfg.requireVerifiedEmail || Boolean(state.user?.emailVerified);
+  }
+
   function applyGate(){
     if(!els.gate) return;
 
@@ -105,6 +147,10 @@
       locked = true;
       title = "Inicia sesión para usar Meilan";
       text = "Accede con tu correo electrónico para continuar.";
+    }else if(state.configured && state.user && !verifiedEnough()){
+      locked = true;
+      title = "Verifica tu correo";
+      text = "Revisa tu bandeja de entrada y confirma tu correo para continuar.";
     }else if(
       state.configured &&
       cfg.requireActiveSubscription === true &&
@@ -152,31 +198,30 @@
 
   async function loadSubscription(){
     state.subscription = null;
-    if(!state.client || !state.user) return;
+    if(!state.db || !state.user || !state.api) return;
 
-    const { data, error } = await state.client
-      .from("meilan_subscriptions")
-      .select("user_id,plan_code,status,current_period_start,current_period_end,created_at,updated_at")
-      .eq("user_id", state.user.id)
-      .maybeSingle();
-
-    if(error){
-      console.warn("No se pudo leer la suscripción de Meilan:", error.message);
-      setMessage("La cuenta inició sesión, pero la tabla de suscripciones todavía no está disponible.", "warning");
-      return;
+    try{
+      const ref = state.api.doc(state.db, "meilan_subscriptions", state.user.uid);
+      const snap = await state.api.getDoc(ref);
+      state.subscription = snap.exists() ? snap.data() : null;
+    }catch(error){
+      console.warn("No se pudo leer la suscripción de Meilan:", error);
+      setMessage("La cuenta inició sesión, pero no se pudo leer el estado de suscripción.", "warning");
     }
-
-    state.subscription = data || null;
   }
 
-  async function handleSession(session){
-    state.user = session?.user || null;
-    await loadSubscription();
+  async function handleUser(user){
+    state.user = user || null;
+    if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
+      state.subscription = null;
+    }else{
+      await loadSubscription();
+    }
     render();
   }
 
   async function login(){
-    if(!state.client || state.busy) return;
+    if(!state.auth || state.busy || !state.api) return;
     const email = els.email?.value.trim();
     const password = els.password?.value || "";
 
@@ -188,20 +233,24 @@
     setBusy(true);
     setMessage("Ingresando…");
     try{
-      const { data, error } = await state.client.auth.signInWithPassword({ email, password });
-      if(error) throw error;
-      await handleSession(data.session);
+      const credential = await state.api.signInWithEmailAndPassword(state.auth, email, password);
+      if(cfg.requireVerifiedEmail && !credential.user.emailVerified){
+        await state.api.sendEmailVerification(credential.user);
+        await state.api.signOut(state.auth);
+        setMessage("Tu correo todavía no está verificado. Te enviamos un nuevo enlace de verificación.", "warning");
+        return;
+      }
       setMessage("Sesión iniciada correctamente.", "success");
       closeModal();
     }catch(error){
-      setMessage(error?.message || "No se pudo iniciar sesión.", "error");
+      setMessage(friendlyError(error, "No se pudo iniciar sesión."), "error");
     }finally{
       setBusy(false);
     }
   }
 
   async function register(){
-    if(!state.client || state.busy) return;
+    if(!state.auth || state.busy || !state.api) return;
     const email = els.email?.value.trim();
     const password = els.password?.value || "";
 
@@ -217,44 +266,41 @@
     setBusy(true);
     setMessage("Creando cuenta…");
     try{
-      const redirectTo = window.location.origin + window.location.pathname;
-      const { data, error } = await state.client.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: redirectTo }
-      });
-      if(error) throw error;
+      const credential = await state.api.createUserWithEmailAndPassword(state.auth, email, password);
 
-      if(data.session){
-        await handleSession(data.session);
+      if(cfg.requireVerifiedEmail){
+        await state.api.sendEmailVerification(credential.user);
+        await state.api.signOut(state.auth);
+        setMessage("Cuenta creada. Revisa tu correo para verificarla antes de ingresar.", "success");
+      }else{
         setMessage("Cuenta creada e iniciada.", "success");
         closeModal();
-      }else{
-        setMessage("Cuenta creada. Revisa tu correo para confirmar el acceso.", "success");
       }
     }catch(error){
-      setMessage(error?.message || "No se pudo crear la cuenta.", "error");
+      setMessage(friendlyError(error, "No se pudo crear la cuenta."), "error");
     }finally{
       setBusy(false);
     }
   }
 
   async function logout(){
-    if(!state.client || state.busy) return;
+    if(!state.auth || state.busy || !state.api) return;
     setBusy(true);
     try{
-      await state.client.auth.signOut();
+      await state.api.signOut(state.auth);
       state.user = null;
       state.subscription = null;
       render();
       setMessage("Sesión cerrada.", "success");
+    }catch(error){
+      setMessage(friendlyError(error, "No se pudo cerrar la sesión."), "error");
     }finally{
       setBusy(false);
     }
   }
 
   async function requestSubscription(){
-    if(!state.client || !state.user || state.busy) return;
+    if(!state.db || !state.user || state.busy || !state.api) return;
 
     const planCode = els.plan?.value;
     if(!["monthly","annual"].includes(planCode)){
@@ -271,21 +317,21 @@
     setMessage("Guardando solicitud…");
 
     try{
+      const ref = state.api.doc(state.db, "meilan_subscriptions", state.user.uid);
+      const existing = await state.api.getDoc(ref);
       const payload = {
-        user_id: state.user.id,
+        user_id: state.user.uid,
         plan_code: planCode,
         status: "pending",
-        updated_at: new Date().toISOString()
+        updated_at: state.api.serverTimestamp()
       };
 
-      const { data, error } = await state.client
-        .from("meilan_subscriptions")
-        .upsert(payload, { onConflict: "user_id" })
-        .select("user_id,plan_code,status,current_period_start,current_period_end,created_at,updated_at")
-        .single();
+      if(!existing.exists()){
+        payload.created_at = state.api.serverTimestamp();
+      }
 
-      if(error) throw error;
-      state.subscription = data;
+      await state.api.setDoc(ref, payload, { merge: true });
+      await loadSubscription();
       render();
       setMessage("Solicitud de suscripción creada. Queda pendiente de activación.", "success");
     }catch(error){
@@ -312,41 +358,30 @@
     render();
 
     if(!state.configured){
-      setMessage("El panel ya está instalado. Falta conectar un proyecto Supabase dedicado a Meilan.", "warning");
+      setMessage("El panel ya está preparado para Firebase. Falta conectar el proyecto Firebase dedicado a Meilan.", "warning");
       return;
     }
 
-    if(!libraryReady()){
-      setMessage("No se pudo cargar el servicio de acceso. Comprueba tu conexión e inténtalo de nuevo.", "error");
-      applyGate();
-      return;
-    }
+    try{
+      await loadFirebase();
 
-    state.client = window.supabase.createClient(
-      cfg.supabaseUrl,
-      cfg.supabasePublishableKey,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
-      }
-    );
+      state.firebaseApp = state.api.initializeApp(cfg.firebaseConfig);
+      state.auth = state.api.getAuth(state.firebaseApp);
+      state.db = state.api.getFirestore(state.firebaseApp);
 
-    const { data, error } = await state.client.auth.getSession();
-    if(error){
-      setMessage(error.message, "error");
-    }
-    await handleSession(data?.session || null);
+      await state.api.setPersistence(state.auth, state.api.browserLocalPersistence);
 
-    state.client.auth.onAuthStateChange((_event, session) => {
-      window.setTimeout(() => {
-        handleSession(session).catch(error => {
+      state.api.onAuthStateChanged(state.auth, user => {
+        handleUser(user).catch(error => {
           console.error("Error actualizando sesión:", error);
+          setMessage("No se pudo actualizar el estado de la cuenta.", "error");
         });
-      }, 0);
-    });
+      });
+    }catch(error){
+      console.error("No se pudo iniciar Firebase:", error);
+      setMessage("No se pudo iniciar Firebase. Comprueba la configuración y la conexión.", "error");
+      applyGate();
+    }
   }
 
   init().catch(error => {
