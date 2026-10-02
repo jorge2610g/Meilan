@@ -310,5 +310,49 @@ body.auth-locked #appContent{display:none}
 .active-plan{background:#f0fdf4;border-color:#bbf7d0}
 .paid-offer{background:#fff}
 
+
+/* Roles usuario / administrador v0.9.0 */
+.role-switch{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  padding:5px;
+  border-radius:14px;
+  background:#f5f5f4;
+  border:1px solid var(--line);
+}
+.role-option{
+  border:0;
+  border-radius:10px;
+  padding:11px 10px;
+  background:transparent;
+  color:#57534e;
+  font:inherit;
+  font-weight:800;
+  cursor:pointer;
+}
+.role-option.active{background:#171717;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.role-hint{margin:-2px 0 2px}
+.account-user-actions{display:flex;gap:8px;flex-wrap:wrap}
+.admin-panel{display:grid;gap:14px}
+.admin-head{display:grid;gap:8px}
+.admin-head h3{margin:4px 0 0;font-size:20px}
+.admin-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.admin-secret-box{
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+  background:#fafaf9;
+  display:grid;
+  gap:12px;
+}
+.admin-secret-box>strong{font-size:16px}
+.admin-secret-box .helper{margin:0}
+@media(max-width:700px){
+  .role-switch{grid-template-columns:1fr}
+  .account-user-actions{width:100%}
+  .account-user-actions .btn{flex:1 1 140px}
+}
+
 /* Respetar estados ocultos controlados por JS */
 [hidden]{display:none!important}
