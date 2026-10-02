@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validPlan(data) {
+      return data.plan_code in ['monthly', 'annual'];
+    }
+
+    function validPendingSubscription(uid, data) {
+      return data.user_id == uid
+        && data.status == 'pending'
+        && validPlan(data);
+    }
+
+    match /meilan_subscriptions/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && validPendingSubscription(uid, request.resource.data)
+        && request.resource.data.keys().hasOnly([
+          'user_id',
+          'plan_code',
+          'status',
+          'created_at',
+          'updated_at'
+        ]);
+
+      allow update: if isOwner(uid)
+        && resource.data.user_id == uid
+        && resource.data.status != 'active'
+        && validPendingSubscription(uid, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'plan_code',
+          'status',
+          'updated_at'
+        ]);
+
+      allow delete: if false;
+    }
+  }
+}
