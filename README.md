@@ -2,48 +2,56 @@
 
 Web móvil para controlar la vida útil de productos en tienda a partir de la tabla oficial de Chile, actualización 28 de julio de 2026.
 
-## Funciones actuales
+## Cuenta y acceso
 
-- Base de productos y reglas de vida útil.
-- Cálculos FR/FB y PREP/PROD independientes.
-- Historial local en el dispositivo.
-- Diseño responsive e instalable como web app.
-- Registro e inicio de sesión por correo y contraseña preparado con Firebase Authentication.
-- Panel “Mi cuenta”.
-- Solicitud de plan mensual o anual almacenada en Cloud Firestore.
-- Bloqueo opcional por sesión o suscripción activa.
+- Firebase Authentication con correo y contraseña.
+- Una prueba gratis de **7 días** por cuenta.
+- Un solo plan pagado: **30 días por $3.000 CLP**.
+- El plan está diseñado como **pago único por 30 días**; no hay renovación automática.
+- Checkout Pro de Mercado Pago preparado en Cloud Functions.
+- Firestore guarda el período de prueba y la vigencia del plan.
 
-## Publicación
+## Mercado Pago
 
-El proyecto es estático y puede publicarse en GitHub Pages, Hostinger, Netlify o Vercel.
+La integración usa el SDK oficial de Node.js en `functions/` y mantiene el Access Token fuera del navegador.
 
-## Acceso por correo y suscripciones (v0.7.0)
+Dependencias principales:
 
-Meilan usa Firebase para la capa de cuenta:
+- `mercadopago@3.6.1`
+- `firebase-functions@7.4.0`
+- `firebase-admin@14.5.0`
 
-- **Firebase Authentication**: correo y contraseña.
-- **Cloud Firestore**: documento de suscripción por usuario.
-- **Reglas de Firestore**: el usuario puede leer su propia suscripción y crear/actualizar solamente una solicitud con estado `pending`; no puede autoactivarse.
+Funciones preparadas:
 
-### Conectar Firebase
+- `createMeilanCheckout`: crea el pago de $3.000 CLP.
+- `mercadoPagoWebhook`: valida la firma del webhook, consulta el pago en Mercado Pago y activa/extiende 30 días de acceso.
 
-1. Crear un proyecto Firebase dedicado a Meilan.
-2. Crear una **Web App** dentro del proyecto.
-3. En Firebase Authentication, habilitar **Email/Password**.
-4. Crear una base de datos **Cloud Firestore**.
-5. Publicar las reglas de `firestore.rules`.
-6. Copiar la configuración Web App de Firebase en `config.js`.
-7. Si se desea exigir verificación de correo, cambiar `requireVerifiedEmail` a `true`.
-8. Si se desea exigir suscripción activa, cambiar `requireActiveSubscription` a `true` solamente cuando exista un flujo administrativo/pago que pueda establecer `status: "active"`.
+Región: `southamerica-west1` (Santiago, Chile).
 
-La configuración Web App de Firebase se usa en el navegador para identificar el proyecto. No se deben publicar claves privadas de Admin SDK, cuentas de servicio ni credenciales de servidor.
+### Credenciales privadas
 
-Las solicitudes se guardan en:
+Nunca colocar el Access Token ni el secreto del webhook en `config.js`.
 
-```
-meilan_subscriptions/{uid}
-```
+Antes de desplegar las funciones, crear estos secretos en Firebase / Google Cloud Secret Manager:
 
-con los campos `user_id`, `plan_code`, `status`, `created_at` y `updated_at`.
+- `MERCADOPAGO_ACCESS_TOKEN`
+- `MERCADOPAGO_WEBHOOK_SECRET`
 
-> Nota: Meilan sigue siendo una aplicación estática. El login y el estado de suscripción controlan la interfaz, pero contenido verdaderamente privado debe servirse desde un backend autorizado.
+Después se despliegan las Functions y se cambia `billing.mercadoPagoEnabled` a `true` en `config.js`.
+
+> Cloud Functions requiere que el proyecto Firebase tenga facturación Blaze habilitada para desplegar funciones.
+
+## Firestore
+
+Publicar `firestore.rules` en Firebase.
+
+El cliente puede:
+
+- leer únicamente su propio documento `meilan_subscriptions/{uid}`;
+- crear una sola prueba de 7 días usando timestamps del servidor.
+
+El cliente no puede activar ni extender un plan pagado. Eso solo lo hace el backend después de confirmar un pago aprobado de Mercado Pago.
+
+## Publicación web
+
+La interfaz continúa publicándose en GitHub Pages.
