@@ -1,11 +1,11 @@
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const {
   getFirestore,
   Timestamp,
   FieldValue
 } = require("firebase-admin/firestore");
+const { SecretManagerServiceClient } = require("@google-cloud/secret-manager");
 const {
   MercadoPagoConfig,
   Preference,
@@ -17,6 +17,7 @@ const {
 initializeApp();
 
 const db = getFirestore();
+const secretManager = new SecretManagerServiceClient();
 const REGION = "southamerica-west1";
 const PROJECT_ID = "meilan-95042";
 const SITE_URL = "https://jorge2610g.github.io/Meilan/";
@@ -24,12 +25,60 @@ const PLAN_PRICE_CLP = 3000;
 const PLAN_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const mercadoPagoAccessToken = defineSecret("MERCADOPAGO_ACCESS_TOKEN");
-const mercadoPagoWebhookSecret = defineSecret("MERCADOPAGO_WEBHOOK_SECRET");
+const ACCESS_TOKEN_SECRET = "MERCADOPAGO_ACCESS_TOKEN";
+const WEBHOOK_SECRET = "MERCADOPAGO_WEBHOOK_SECRET";
 
-function mercadoPagoClient() {
+async function requireAdmin(uid) {
+  if (!uid) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+  const snap = await db.collection("meilan_admins").doc(uid).get();
+  if (!snap.exists || snap.data()?.active !== true) {
+    throw new HttpsError("permission-denied", "No tienes acceso de administrador.");
+  }
+}
+
+function secretName(secretId) {
+  return `projects/${PROJECT_ID}/secrets/${secretId}`;
+}
+
+async function ensureSecret(secretId) {
+  const name = secretName(secretId);
+  try {
+    await secretManager.getSecret({ name });
+  } catch (error) {
+    if (Number(error?.code) !== 5) throw error;
+
+    await secretManager.createSecret({
+      parent: `projects/${PROJECT_ID}`,
+      secretId,
+      secret: {
+        replication: { automatic: {} }
+      }
+    });
+  }
+}
+
+async function addSecretVersion(secretId, value) {
+  await ensureSecret(secretId);
+  await secretManager.addSecretVersion({
+    parent: secretName(secretId),
+    payload: {
+      data: Buffer.from(value, "utf8")
+    }
+  });
+}
+
+async function readSecret(secretId) {
+  const [version] = await secretManager.accessSecretVersion({
+    name: `${secretName(secretId)}/versions/latest`
+  });
+  return version.payload.data.toString("utf8");
+}
+
+async function mercadoPagoClient() {
+  const accessToken = await readSecret(ACCESS_TOKEN_SECRET);
   return new MercadoPagoConfig({
-    accessToken: mercadoPagoAccessToken.value(),
+    accessToken,
     options: { timeout: 10000 }
   });
 }
@@ -38,11 +87,27 @@ function webhookUrl() {
   return `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/mercadoPagoWebhook`;
 }
 
+exports.saveMercadoPagoCredentials = onCall(
+  { region: REGION },
+  async request => {
+    await requireAdmin(request.auth?.uid);
+
+    const accessToken = String(request.data?.accessToken || "").trim();
+    const webhookSecret = String(request.data?.webhookSecret || "").trim();
+
+    if (accessToken.length < 20 || webhookSecret.length < 12) {
+      throw new HttpsError("invalid-argument", "Credenciales incompletas.");
+    }
+
+    await addSecretVersion(ACCESS_TOKEN_SECRET, accessToken);
+    await addSecretVersion(WEBHOOK_SECRET, webhookSecret);
+
+    return { ok: true };
+  }
+);
+
 exports.createMeilanCheckout = onCall(
-  {
-    region: REGION,
-    secrets: [mercadoPagoAccessToken]
-  },
+  { region: REGION },
   async request => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
@@ -53,7 +118,7 @@ exports.createMeilanCheckout = onCall(
     const externalReference = `meilan:${uid}:${Date.now()}`;
 
     try {
-      const preference = new Preference(mercadoPagoClient());
+      const preference = new Preference(await mercadoPagoClient());
 
       const body = {
         items: [
@@ -82,9 +147,7 @@ exports.createMeilanCheckout = onCall(
         statement_descriptor: "MEILAN"
       };
 
-      if (email) {
-        body.payer = { email };
-      }
+      if (email) body.payer = { email };
 
       const result = await preference.create({ body });
 
@@ -97,17 +160,14 @@ exports.createMeilanCheckout = onCall(
         preferenceId: result.id || null
       };
     } catch (error) {
-      console.error("Error creando preferencia Mercado Pago:", error);
+      console.error("Error creando preferencia Mercado Pago:", error?.message || error);
       throw new HttpsError("internal", "No se pudo iniciar el pago.");
     }
   }
 );
 
 exports.mercadoPagoWebhook = onRequest(
-  {
-    region: REGION,
-    secrets: [mercadoPagoAccessToken, mercadoPagoWebhookSecret]
-  },
+  { region: REGION },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("method_not_allowed");
@@ -126,26 +186,26 @@ exports.mercadoPagoWebhook = onRequest(
     }
 
     try {
+      const webhookSecret = await readSecret(WEBHOOK_SECRET);
+
       WebhookSignatureValidator.validate({
         xSignature: req.headers["x-signature"],
         xRequestId: req.headers["x-request-id"],
         dataId,
-        secret: mercadoPagoWebhookSecret.value()
+        secret: webhookSecret
       });
     } catch (error) {
       if (error instanceof InvalidWebhookSignatureError) {
         console.warn("Webhook Mercado Pago con firma inválida.");
-        res.status(401).send("invalid_signature");
-        return;
+      } else {
+        console.error("Error validando webhook:", error?.message || error);
       }
-
-      console.error("Error validando webhook:", error);
       res.status(401).send("invalid_signature");
       return;
     }
 
     try {
-      const paymentApi = new Payment(mercadoPagoClient());
+      const paymentApi = new Payment(await mercadoPagoClient());
       const payment = await paymentApi.get({ id: dataId });
 
       if (payment?.status !== "approved") {
@@ -168,8 +228,7 @@ exports.mercadoPagoWebhook = onRequest(
         console.warn("Pago Mercado Pago no coincide con el plan Meilan.", {
           paymentId: payment.id,
           amount,
-          currency,
-          externalReference
+          currency
         });
         res.status(400).send("payment_mismatch");
         return;
@@ -212,7 +271,6 @@ exports.mercadoPagoWebhook = onRequest(
         }
 
         tx.set(subscriptionRef, subscriptionData, { merge: true });
-
         tx.set(paymentRef, {
           user_id: uid,
           payment_id: paymentId,
@@ -227,7 +285,7 @@ exports.mercadoPagoWebhook = onRequest(
 
       res.status(200).send("ok");
     } catch (error) {
-      console.error("Error procesando webhook Mercado Pago:", error);
+      console.error("Error procesando webhook Mercado Pago:", error?.message || error);
       res.status(500).send("internal_error");
     }
   }
