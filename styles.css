@@ -289,3 +289,7 @@ body.auth-locked #appContent{display:none}
   .account-user-row,.subscription-head{display:grid}
   .account-user-row .btn{width:100%}
 }
+
+
+/* Respetar estados ocultos controlados por JS */
+[hidden]{display:none!important}
