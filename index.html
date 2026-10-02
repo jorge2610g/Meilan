@@ -226,9 +226,88 @@
   </section>
 </main>
 
+
+<section id="accessGate" class="access-gate" hidden>
+  <div class="access-gate-card">
+    <span class="section-kicker">MEILAN</span>
+    <h2 id="accessGateTitle">Inicia sesión para usar Meilan</h2>
+    <p id="accessGateText">Accede con tu correo electrónico para continuar.</p>
+    <button id="accessGateOpenBtn" class="btn primary" type="button">Acceder a mi cuenta</button>
+  </div>
+</section>
+
+<dialog id="accountModal" class="account-dialog">
+  <div class="account-dialog-card">
+    <div class="account-dialog-head">
+      <div>
+        <span class="section-kicker">CUENTA MEILAN</span>
+        <h2>Acceso y suscripción</h2>
+      </div>
+      <button id="accountCloseBtn" class="result-close-btn" type="button" aria-label="Cerrar">×</button>
+    </div>
+
+    <div id="accountSetupNotice" class="account-setup-notice" hidden>
+      <strong>Panel instalado, backend pendiente.</strong>
+      <p>La calculadora sigue disponible. Para activar cuentas reales por correo hay que conectar un proyecto Supabase dedicado a Meilan.</p>
+    </div>
+
+    <div id="accountMessage" class="account-message" hidden></div>
+
+    <div id="accountAuthForms" class="account-auth-forms">
+      <label class="field">
+        <span>Correo electrónico</span>
+        <input id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="tu@correo.com">
+      </label>
+      <label class="field">
+        <span>Contraseña</span>
+        <input id="authPassword" type="password" autocomplete="current-password" minlength="8" placeholder="Mínimo 8 caracteres">
+      </label>
+      <div class="account-actions">
+        <button id="loginBtn" class="btn primary" type="button">Iniciar sesión</button>
+        <button id="registerBtn" class="btn ghost" type="button">Crear cuenta</button>
+      </div>
+      <p class="helper">El registro usa confirmación por correo cuando esa opción está habilitada en Supabase.</p>
+    </div>
+
+    <div id="accountPanel" class="account-panel" hidden>
+      <div class="account-user-row">
+        <div>
+          <span>Sesión iniciada como</span>
+          <strong id="signedInEmail">—</strong>
+        </div>
+        <button id="logoutBtn" class="btn ghost small" type="button">Cerrar sesión</button>
+      </div>
+
+      <div class="subscription-box">
+        <div class="subscription-head">
+          <div>
+            <span class="section-kicker">SUSCRIPCIÓN</span>
+            <h3>Plan de acceso</h3>
+          </div>
+          <span id="subscriptionStatus" class="status-badge neutral">Sin suscripción</span>
+        </div>
+
+        <label class="field">
+          <span>Plan</span>
+          <select id="subscriptionPlan">
+            <option value="monthly">Mensual</option>
+            <option value="annual">Anual</option>
+          </select>
+        </label>
+
+        <button id="requestSubscriptionBtn" class="btn primary wide" type="button">Solicitar suscripción</button>
+        <p class="helper">La solicitud queda pendiente de activación. El usuario no puede activar su propia suscripción.</p>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="data.js?v=0.5.9"></script>
-<script src="app.js?v=0.5.9"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+<script src="config.js?v=0.6.0"></script>
+<script src="auth.js?v=0.6.0"></script>
+<script src="data.js?v=0.6.0"></script>
+<script src="app.js?v=0.6.0"></script>
 </body>
 </html>
