@@ -33,12 +33,17 @@
     busy: false
   };
 
-  function configReady(){
+  function credentialsReady(){
     return Boolean(
       cfg.supabaseUrl &&
       /^https:\/\//i.test(cfg.supabaseUrl) &&
       cfg.supabasePublishableKey &&
-      cfg.supabasePublishableKey.length > 20 &&
+      cfg.supabasePublishableKey.length > 20
+    );
+  }
+
+  function libraryReady(){
+    return Boolean(
       window.supabase &&
       typeof window.supabase.createClient === "function"
     );
@@ -303,11 +308,17 @@
       if(event.target === els.modal) closeModal();
     });
 
-    state.configured = configReady();
+    state.configured = credentialsReady();
     render();
 
     if(!state.configured){
       setMessage("El panel ya está instalado. Falta conectar un proyecto Supabase dedicado a Meilan.", "warning");
+      return;
+    }
+
+    if(!libraryReady()){
+      setMessage("No se pudo cargar el servicio de acceso. Comprueba tu conexión e inténtalo de nuevo.", "error");
+      applyGate();
       return;
     }
 
