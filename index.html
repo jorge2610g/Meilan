@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.8.0">
+  <link rel="stylesheet" href="styles.css?v=0.9.0">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.8.0</span>
+    <span class="version">v0.9.0</span>
   </div>
 </header>
 
@@ -255,6 +255,11 @@
     <div id="accountMessage" class="account-message" hidden></div>
 
     <div id="accountAuthForms" class="account-auth-forms">
+      <div class="role-switch" aria-label="Tipo de acceso">
+        <button id="userRoleBtn" class="role-option active" type="button">Acceso usuario</button>
+        <button id="adminRoleBtn" class="role-option" type="button">Acceso administrador</button>
+      </div>
+      <p id="authRoleHint" class="helper role-hint">Acceso normal para usuarios de Meilan.</p>
       <label class="field">
         <span>Correo electrónico</span>
         <input id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="tu@correo.com">
@@ -276,7 +281,10 @@
           <span>Sesión iniciada como</span>
           <strong id="signedInEmail">—</strong>
         </div>
-        <button id="logoutBtn" class="btn ghost small" type="button">Cerrar sesión</button>
+        <div class="account-user-actions">
+          <button id="openAdminPanelBtn" class="btn secondary small" type="button" hidden>Administración</button>
+          <button id="logoutBtn" class="btn ghost small" type="button">Cerrar sesión</button>
+        </div>
       </div>
 
       <div class="subscription-box">
@@ -323,14 +331,54 @@
         </div>
       </div>
     </div>
+
+    <div id="adminPanel" class="admin-panel" hidden>
+      <div class="admin-head">
+        <div>
+          <span class="section-kicker">ADMINISTRADOR</span>
+          <h3>Configuración de Mercado Pago</h3>
+          <p>Esta pantalla solo está disponible para cuentas administradoras.</p>
+        </div>
+        <span id="mpCredentialStatus" class="status-badge soon">Pendiente de desplegar backend seguro</span>
+      </div>
+
+      <div class="account-user-row admin-user-row">
+        <div>
+          <span>Administrador</span>
+          <strong id="adminSignedEmail">—</strong>
+        </div>
+        <div class="account-user-actions">
+          <button id="adminToUserBtn" class="btn secondary small" type="button">Vista usuario</button>
+          <button id="adminLogoutBtn" class="btn ghost small" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+
+      <div class="admin-secret-box">
+        <strong>Credenciales privadas de Mercado Pago</strong>
+        <p class="helper">Los valores se enviarán al backend seguro y se guardarán en Google Secret Manager. Nunca deben quedar en el código público ni en Firestore.</p>
+
+        <label class="field">
+          <span>Access Token</span>
+          <input id="mpAccessToken" type="password" autocomplete="off" placeholder="APP_USR-...">
+        </label>
+
+        <label class="field">
+          <span>Secreto del webhook</span>
+          <input id="mpWebhookSecret" type="password" autocomplete="off" placeholder="Webhook secret">
+        </label>
+
+        <button id="saveMpCredentialsBtn" class="btn primary wide" type="button" disabled>Guardar credenciales de forma segura</button>
+        <p class="helper">El botón se habilitará después de desplegar la función segura de Firebase y otorgarle acceso a Secret Manager.</p>
+      </div>
+    </div>
   </div>
 </dialog>
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.8.0"></script>
-<script src="auth.js?v=0.8.0"></script>
-<script src="data.js?v=0.8.0"></script>
-<script src="app.js?v=0.8.0"></script>
+<script src="config.js?v=0.9.0"></script>
+<script src="auth.js?v=0.9.0"></script>
+<script src="data.js?v=0.9.0"></script>
+<script src="app.js?v=0.9.0"></script>
 </body>
 </html>
