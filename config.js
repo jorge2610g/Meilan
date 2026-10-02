@@ -8,7 +8,20 @@ window.MEILAN_CONFIG = {
     appId: "1:878546909079:web:27511e83b786d03e47f6d2",
     measurementId: "G-YNBY9VX1NC"
   },
+
   requireLogin: true,
   requireVerifiedEmail: false,
-  requireActiveSubscription: false
+
+  // Se activará cuando el backend de Mercado Pago quede desplegado.
+  requireActiveSubscription: false,
+
+  billing: {
+    trialDays: 7,
+    planDays: 30,
+    planPriceClp: 3000,
+    functionsRegion: "southamerica-west1",
+
+    // Cambiar a true después de guardar los secretos y desplegar Functions.
+    mercadoPagoEnabled: false
+  }
 };
