@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.7.2">
+  <link rel="stylesheet" href="styles.css?v=0.8.0">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.7.2</span>
+    <span class="version">v0.8.0</span>
   </div>
 </header>
 
@@ -282,22 +282,45 @@
       <div class="subscription-box">
         <div class="subscription-head">
           <div>
-            <span class="section-kicker">SUSCRIPCIÓN</span>
-            <h3>Plan de acceso</h3>
+            <span class="section-kicker">ACCESO MEILAN</span>
+            <h3>Tu plan</h3>
           </div>
-          <span id="subscriptionStatus" class="status-badge neutral">Sin suscripción</span>
+          <span id="subscriptionStatus" class="status-badge soon">Prueba disponible</span>
         </div>
 
-        <label class="field">
-          <span>Plan</span>
-          <select id="subscriptionPlan">
-            <option value="monthly">Mensual</option>
-            <option value="annual">Anual</option>
-          </select>
-        </label>
+        <div id="trialOffer" class="plan-offer trial-offer">
+          <span class="plan-kicker">PRUEBA GRATIS</span>
+          <div class="plan-price-row">
+            <strong>7 días</strong>
+            <span>$0</span>
+          </div>
+          <p>Prueba todas las funciones de Meilan sin costo durante 7 días.</p>
+          <button id="startTrialBtn" class="btn primary wide" type="button">Comenzar prueba gratis</button>
+          <small>Una prueba gratis por cuenta.</small>
+        </div>
 
-        <button id="requestSubscriptionBtn" class="btn primary wide" type="button">Solicitar suscripción</button>
-        <p class="helper">La solicitud queda pendiente de activación. El usuario no puede activar su propia suscripción.</p>
+        <div id="trialActive" class="plan-state trial-active" hidden>
+          <span class="plan-kicker">PRUEBA GRATIS ACTIVA</span>
+          <strong>Estás probando Meilan por 7 días</strong>
+          <p id="trialEndsText">—</p>
+        </div>
+
+        <div id="paidPlanOffer" class="plan-offer paid-offer" hidden>
+          <span class="plan-kicker">PLAN 30 DÍAS</span>
+          <div class="plan-price-row">
+            <strong id="planPriceText">$3.000 CLP</strong>
+            <span>30 días</span>
+          </div>
+          <p>Pago único por 30 días de acceso. No se renueva automáticamente.</p>
+          <button id="buyPlanBtn" class="btn primary wide" type="button">Pagar con Mercado Pago</button>
+          <small id="paymentSetupNote">Mercado Pago está preparado; falta cargar las credenciales y desplegar el backend.</small>
+        </div>
+
+        <div id="activePlan" class="plan-state active-plan" hidden>
+          <span class="plan-kicker">PLAN ACTIVO</span>
+          <strong>Plan de 30 días</strong>
+          <p id="planEndsText">—</p>
+        </div>
       </div>
     </div>
   </div>
@@ -305,9 +328,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.7.2"></script>
-<script src="auth.js?v=0.7.2"></script>
-<script src="data.js?v=0.7.2"></script>
-<script src="app.js?v=0.7.2"></script>
+<script src="config.js?v=0.8.0"></script>
+<script src="auth.js?v=0.8.0"></script>
+<script src="data.js?v=0.8.0"></script>
+<script src="app.js?v=0.8.0"></script>
 </body>
 </html>
