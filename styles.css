@@ -215,3 +215,77 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
   .fr-result-tools{width:100%;justify-content:space-between}
   .result-close-btn{order:2}
 }
+
+
+/* Cuenta y suscripciones v0.6.0 */
+.account-btn{background:#171717;color:#fff;padding:8px 12px;border-radius:999px}
+.account-btn:hover{background:#292524}
+.account-dialog{
+  width:min(92vw,560px);
+  max-height:90vh;
+  border:0;
+  border-radius:22px;
+  padding:0;
+  box-shadow:0 28px 90px rgba(0,0,0,.28);
+}
+.account-dialog::backdrop{background:rgba(0,0,0,.52);backdrop-filter:blur(3px)}
+.account-dialog-card{padding:20px;background:#fff}
+.account-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.account-dialog-head h2{margin:4px 0 0;font-size:24px}
+.account-setup-notice{
+  border:1px solid #f59e0b;
+  background:#fffbeb;
+  border-radius:14px;
+  padding:13px;
+  margin-bottom:14px;
+}
+.account-setup-notice strong{display:block;color:#92400e;margin-bottom:4px}
+.account-setup-notice p{margin:0;color:#78350f;font-size:13px;line-height:1.45}
+.account-message{border-radius:12px;padding:11px 12px;margin-bottom:14px;font-size:13px;font-weight:700}
+.account-message.info{background:#eff6ff;color:#1d4ed8}
+.account-message.warning{background:#fffbeb;color:#92400e}
+.account-message.error{background:#fef2f2;color:#991b1b}
+.account-message.success{background:#f0fdf4;color:#166534}
+.account-auth-forms{display:grid;gap:12px}
+.account-actions{display:flex;gap:10px;flex-wrap:wrap}
+.account-actions .btn{flex:1 1 180px}
+.account-user-row{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  align-items:center;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+}
+.account-user-row span{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
+.account-user-row strong{font-size:14px;overflow-wrap:anywhere}
+.subscription-box{margin-top:14px;border:1px solid var(--line);border-radius:16px;padding:14px;background:#fafaf9}
+.subscription-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}
+.subscription-head h3{margin:4px 0 0;font-size:18px}
+.access-gate{
+  min-height:calc(100vh - 170px);
+  display:grid;
+  place-items:center;
+  padding:28px 16px 60px;
+  background:var(--bg);
+}
+.access-gate[hidden]{display:none}
+.access-gate-card{
+  width:min(100%,520px);
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:26px;
+  box-shadow:var(--shadow);
+  text-align:center;
+}
+.access-gate-card h2{margin:6px 0 8px;font-size:26px}
+.access-gate-card p{color:var(--muted);margin:0 0 18px;line-height:1.5}
+body.auth-locked #appContent{display:none}
+@media(max-width:700px){
+  .account-dialog{width:calc(100vw - 20px);border-radius:18px}
+  .account-dialog-card{padding:16px}
+  .account-user-row,.subscription-head{display:grid}
+  .account-user-row .btn{width:100%}
+}
