@@ -27,19 +27,20 @@ service cloud.firestore {
         ]);
     }
 
-    match /meilan_subscriptions/{uid} {
-      // El usuario solo ve su propio estado de acceso.
+    match /meilan_admins/{uid} {
+      // Cada cuenta solo puede comprobar su propio rol.
+      // Nadie puede darse permisos de administrador desde la app.
       allow read: if isOwner(uid);
+      allow create, update, delete: if false;
+    }
 
-      // El cliente únicamente puede crear una sola prueba gratis.
-      // Pagos y activaciones del plan de 30 días se escriben desde Admin SDK.
+    match /meilan_subscriptions/{uid} {
+      allow read: if isOwner(uid);
       allow create: if isOwner(uid) && validTrial(uid, request.resource.data);
-
       allow update, delete: if false;
     }
 
     match /meilan_payments/{paymentId} {
-      // Historial interno de pagos: solo backend/Admin SDK.
       allow read, write: if false;
     }
   }
