@@ -3,7 +3,6 @@
   const cfg = window.MEILAN_CONFIG || {};
   const billing = cfg.billing || {};
   const TRIAL_DAYS = Number(billing.trialDays || 7);
-  const PLAN_DAYS = Number(billing.planDays || 30);
   const PLAN_PRICE_CLP = Number(billing.planPriceClp || 3000);
   const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const $ = id => document.getElementById(id);
@@ -15,6 +14,7 @@
     setupNotice: $("accountSetupNotice"),
     authForms: $("accountAuthForms"),
     accountPanel: $("accountPanel"),
+    adminPanel: $("adminPanel"),
     gate: $("accessGate"),
     gateTitle: $("accessGateTitle"),
     gateText: $("accessGateText"),
@@ -24,8 +24,19 @@
     password: $("authPassword"),
     loginBtn: $("loginBtn"),
     registerBtn: $("registerBtn"),
+    userRoleBtn: $("userRoleBtn"),
+    adminRoleBtn: $("adminRoleBtn"),
+    authRoleHint: $("authRoleHint"),
     signedEmail: $("signedInEmail"),
     logoutBtn: $("logoutBtn"),
+    openAdminPanelBtn: $("openAdminPanelBtn"),
+    adminSignedEmail: $("adminSignedEmail"),
+    adminToUserBtn: $("adminToUserBtn"),
+    adminLogoutBtn: $("adminLogoutBtn"),
+    mpAccessToken: $("mpAccessToken"),
+    mpWebhookSecret: $("mpWebhookSecret"),
+    saveMpCredentialsBtn: $("saveMpCredentialsBtn"),
+    mpCredentialStatus: $("mpCredentialStatus"),
     subscriptionStatus: $("subscriptionStatus"),
     trialOffer: $("trialOffer"),
     trialActive: $("trialActive"),
@@ -46,6 +57,9 @@
     functions: null,
     user: null,
     subscription: null,
+    isAdmin: false,
+    loginMode: "user",
+    viewMode: "user",
     configured: false,
     busy: false,
     api: null
@@ -103,8 +117,9 @@
       "auth/too-many-requests": "Demasiados intentos. Inténtalo nuevamente más tarde.",
       "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión.",
       "functions/unauthenticated": "Debes iniciar sesión para continuar.",
-      "functions/failed-precondition": "El pago todavía no está disponible.",
-      "functions/internal": "No se pudo iniciar el pago. Inténtalo nuevamente."
+      "functions/permission-denied": "Esta cuenta no tiene permisos de administrador.",
+      "functions/failed-precondition": "La función todavía no está habilitada.",
+      "functions/internal": "No se pudo completar la operación."
     };
     return map[code] || error?.message || fallback;
   }
@@ -115,10 +130,14 @@
       els.loginBtn,
       els.registerBtn,
       els.logoutBtn,
+      els.adminLogoutBtn,
       els.startTrialBtn,
-      els.buyPlanBtn
+      els.buyPlanBtn,
+      els.saveMpCredentialsBtn
     ].filter(Boolean).forEach(btn => btn.disabled = busy);
+
     if(els.buyPlanBtn && !billing.mercadoPagoEnabled) els.buyPlanBtn.disabled = true;
+    if(els.saveMpCredentialsBtn && !billing.adminCredentialSaveEnabled) els.saveMpCredentialsBtn.disabled = true;
   }
 
   function openModal(){
@@ -134,6 +153,37 @@
     if(!els.modal) return;
     if(typeof els.modal.close === "function" && els.modal.open) els.modal.close();
     else els.modal.hidden = true;
+  }
+
+  function setLoginMode(mode){
+    state.loginMode = mode === "admin" ? "admin" : "user";
+    els.userRoleBtn?.classList.toggle("active", state.loginMode === "user");
+    els.adminRoleBtn?.classList.toggle("active", state.loginMode === "admin");
+
+    if(els.registerBtn) els.registerBtn.hidden = state.loginMode === "admin";
+    if(els.authRoleHint){
+      els.authRoleHint.textContent = state.loginMode === "admin"
+        ? "Solo cuentas marcadas como administradoras pueden entrar aquí."
+        : "Acceso normal para usuarios de Meilan.";
+    }
+    if(els.loginBtn){
+      els.loginBtn.textContent = state.loginMode === "admin"
+        ? "Ingresar como administrador"
+        : "Iniciar sesión";
+    }
+    setMessage("");
+  }
+
+  async function checkAdminRole(uid){
+    if(!state.db || !uid || !state.api) return false;
+    try{
+      const ref = state.api.doc(state.db, "meilan_admins", uid);
+      const snap = await state.api.getDoc(ref);
+      return snap.exists() && snap.data()?.active === true;
+    }catch(error){
+      console.warn("No se pudo comprobar el rol administrador:", error);
+      return false;
+    }
   }
 
   function toDate(value){
@@ -222,7 +272,7 @@
       locked = true;
       title = "Verifica tu correo";
       text = "Revisa tu bandeja de entrada y confirma tu correo para continuar.";
-    }else if(state.configured && cfg.requireActiveSubscription === true && state.user){
+    }else if(state.configured && cfg.requireActiveSubscription === true && state.user && !state.isAdmin){
       const e = entitlement();
       if(!e.active){
         locked = true;
@@ -287,15 +337,21 @@
   function render(){
     if(els.setupNotice) els.setupNotice.hidden = state.configured;
     if(els.authForms) els.authForms.hidden = !state.configured || Boolean(state.user);
-    if(els.accountPanel) els.accountPanel.hidden = !state.user;
+
+    const showAdmin = Boolean(state.user && state.isAdmin && state.viewMode === "admin");
+    if(els.adminPanel) els.adminPanel.hidden = !showAdmin;
+    if(els.accountPanel) els.accountPanel.hidden = !state.user || showAdmin;
 
     if(els.openBtn){
-      els.openBtn.textContent = state.user ? "Mi cuenta" : "Acceder";
+      els.openBtn.textContent = state.user
+        ? (showAdmin ? "Administrador" : "Mi cuenta")
+        : "Acceder";
     }
 
-    if(state.user && els.signedEmail){
-      els.signedEmail.textContent = state.user.email || "Cuenta Meilan";
-    }
+    if(state.user && els.signedEmail) els.signedEmail.textContent = state.user.email || "Cuenta Meilan";
+    if(state.user && els.adminSignedEmail) els.adminSignedEmail.textContent = state.user.email || "Administrador";
+
+    if(els.openAdminPanelBtn) els.openAdminPanelBtn.hidden = !state.isAdmin;
 
     const badge = subscriptionLabel();
     if(els.subscriptionStatus){
@@ -303,7 +359,15 @@
       els.subscriptionStatus.className = "status-badge " + badge.cls;
     }
 
+    if(els.mpCredentialStatus){
+      els.mpCredentialStatus.textContent = billing.adminCredentialSaveEnabled
+        ? "Guardado seguro habilitado"
+        : "Pendiente de desplegar backend seguro";
+      els.mpCredentialStatus.className = "status-badge " + (billing.adminCredentialSaveEnabled ? "ok" : "soon");
+    }
+
     renderPlan();
+    setBusy(state.busy);
     applyGate();
   }
 
@@ -323,11 +387,38 @@
 
   async function handleUser(user){
     state.user = user || null;
+    state.isAdmin = false;
+
+    if(!state.user){
+      state.subscription = null;
+      state.viewMode = "user";
+      render();
+      return;
+    }
+
+    state.isAdmin = await checkAdminRole(state.user.uid);
+
     if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
       state.subscription = null;
     }else{
       await loadSubscription();
     }
+
+    if(state.loginMode === "admin" && !state.isAdmin){
+      await state.api.signOut(state.auth);
+      state.user = null;
+      state.subscription = null;
+      state.viewMode = "user";
+      render();
+      setMessage("Esta cuenta no tiene acceso de administrador.", "error");
+      openModal();
+      return;
+    }
+
+    if(state.loginMode === "admin" && state.isAdmin){
+      state.viewMode = "admin";
+    }
+
     render();
   }
 
@@ -342,25 +433,49 @@
     }
 
     setBusy(true);
-    setMessage("Ingresando…");
+    setMessage(state.loginMode === "admin" ? "Verificando acceso administrador…" : "Ingresando…");
+
     try{
       const credential = await state.api.signInWithEmailAndPassword(state.auth, email, password);
+
       if(cfg.requireVerifiedEmail && !credential.user.emailVerified){
         await state.api.sendEmailVerification(credential.user);
         await state.api.signOut(state.auth);
         setMessage("Tu correo todavía no está verificado. Te enviamos un nuevo enlace de verificación.", "warning");
         return;
       }
-      setMessage("Sesión iniciada correctamente.", "success");
+
+      if(state.loginMode === "admin"){
+        const admin = await checkAdminRole(credential.user.uid);
+        if(!admin){
+          await state.api.signOut(state.auth);
+          setMessage("Esta cuenta no tiene acceso de administrador.", "error");
+          return;
+        }
+        state.isAdmin = true;
+        state.viewMode = "admin";
+        setMessage("Acceso administrador correcto.", "success");
+      }else{
+        state.viewMode = "user";
+        setMessage("Sesión iniciada correctamente.", "success");
+      }
+
+      await handleUser(credential.user);
     }catch(error){
       setMessage(friendlyError(error, "No se pudo iniciar sesión."), "error");
     }finally{
       setBusy(false);
+      render();
     }
   }
 
   async function register(){
+    if(state.loginMode === "admin"){
+      setMessage("Las cuentas administradoras no se crean desde esta pantalla.", "warning");
+      return;
+    }
     if(!state.auth || state.busy || !state.api) return;
+
     const email = els.email?.value.trim();
     const password = els.password?.value || "";
 
@@ -383,12 +498,15 @@
         await state.api.signOut(state.auth);
         setMessage("Cuenta creada. Revisa tu correo para verificarla antes de ingresar.", "success");
       }else{
+        state.viewMode = "user";
         setMessage("Cuenta creada. Ya puedes activar tu prueba gratis de 7 días.", "success");
+        await handleUser(credential.user);
       }
     }catch(error){
       setMessage(friendlyError(error, "No se pudo crear la cuenta."), "error");
     }finally{
       setBusy(false);
+      render();
     }
   }
 
@@ -399,6 +517,9 @@
       await state.api.signOut(state.auth);
       state.user = null;
       state.subscription = null;
+      state.isAdmin = false;
+      state.viewMode = "user";
+      setLoginMode("user");
       render();
       setMessage("Sesión cerrada.", "success");
     }catch(error){
@@ -448,7 +569,7 @@
     if(!state.user || !state.functions || state.busy || !state.api) return;
 
     if(!billing.mercadoPagoEnabled){
-      setMessage("Mercado Pago está preparado, pero falta cargar las credenciales y desplegar el backend.", "warning");
+      setMessage("Mercado Pago está preparado, pero falta desplegar el backend de pagos.", "warning");
       return;
     }
 
@@ -469,6 +590,45 @@
     }finally{
       setBusy(false);
       renderPlan();
+    }
+  }
+
+  async function saveMercadoPagoCredentials(){
+    if(!state.isAdmin || !state.functions || state.busy || !state.api){
+      setMessage("Necesitas acceso administrador.", "error");
+      return;
+    }
+
+    if(!billing.adminCredentialSaveEnabled){
+      setMessage("El panel administrador ya está listo, pero falta desplegar la función segura que guarda las credenciales.", "warning");
+      return;
+    }
+
+    const accessToken = els.mpAccessToken?.value.trim() || "";
+    const webhookSecret = els.mpWebhookSecret?.value.trim() || "";
+
+    if(accessToken.length < 20 || webhookSecret.length < 12){
+      setMessage("Completa el Access Token y el secreto del webhook de Mercado Pago.", "error");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("Guardando credenciales de forma segura…");
+
+    try{
+      const saveCredentials = state.api.httpsCallable(state.functions, "saveMercadoPagoCredentials");
+      await saveCredentials({accessToken, webhookSecret});
+
+      if(els.mpAccessToken) els.mpAccessToken.value = "";
+      if(els.mpWebhookSecret) els.mpWebhookSecret.value = "";
+
+      setMessage("Credenciales guardadas en Secret Manager. No quedaron almacenadas en el navegador ni en Firestore.", "success");
+    }catch(error){
+      console.error("No se pudieron guardar las credenciales:", error);
+      setMessage(friendlyError(error, "No se pudieron guardar las credenciales."), "error");
+    }finally{
+      setBusy(false);
+      render();
     }
   }
 
@@ -503,13 +663,27 @@
     els.loginBtn?.addEventListener("click", login);
     els.registerBtn?.addEventListener("click", register);
     els.logoutBtn?.addEventListener("click", logout);
+    els.adminLogoutBtn?.addEventListener("click", logout);
+    els.userRoleBtn?.addEventListener("click", () => setLoginMode("user"));
+    els.adminRoleBtn?.addEventListener("click", () => setLoginMode("admin"));
+    els.openAdminPanelBtn?.addEventListener("click", () => {
+      if(!state.isAdmin) return;
+      state.viewMode = "admin";
+      render();
+    });
+    els.adminToUserBtn?.addEventListener("click", () => {
+      state.viewMode = "user";
+      render();
+    });
     els.startTrialBtn?.addEventListener("click", startTrial);
     els.buyPlanBtn?.addEventListener("click", buyPlan);
+    els.saveMpCredentialsBtn?.addEventListener("click", saveMercadoPagoCredentials);
 
     els.modal?.addEventListener("click", event => {
       if(event.target === els.modal) closeModal();
     });
 
+    setLoginMode("user");
     state.configured = credentialsReady();
     render();
 
