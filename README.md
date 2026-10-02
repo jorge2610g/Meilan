@@ -1,57 +1,66 @@
 # Meilan
 
-Web móvil para controlar la vida útil de productos en tienda a partir de la tabla oficial de Chile, actualización 28 de julio de 2026.
+Web móvil para controlar la vida útil de productos en tienda a partir de la tabla oficial de Chile.
 
-## Cuenta y acceso
+## Roles
 
-- Firebase Authentication con correo y contraseña.
-- Una prueba gratis de **7 días** por cuenta.
-- Un solo plan pagado: **30 días por $3.000 CLP**.
-- El plan está diseñado como **pago único por 30 días**; no hay renovación automática.
-- Checkout Pro de Mercado Pago preparado en Cloud Functions.
-- Firestore guarda el período de prueba y la vigencia del plan.
+Meilan separa dos accesos:
+
+- **Usuario**: calculadora, prueba gratis de 7 días y plan de 30 días.
+- **Administrador**: puede entrar a la vista de usuario y a una pantalla administrativa separada.
+
+El rol administrador se autoriza con un documento creado por administración:
+
+`meilan_admins/{uid}`
+
+con:
+
+```json
+{
+  "active": true
+}
+```
+
+La aplicación cliente puede leer únicamente el documento de rol de la propia cuenta. No puede crear, editar ni eliminar administradores.
+
+## Plan de usuario
+
+- Prueba gratis: 7 días.
+- Plan pagado: 30 días.
+- Precio: $3.000 CLP.
+- Pago único, sin renovación automática.
 
 ## Mercado Pago
 
-La integración usa el SDK oficial de Node.js en `functions/` y mantiene el Access Token fuera del navegador.
+La pantalla de administración contiene únicamente la configuración de Mercado Pago.
 
-Dependencias principales:
+Las credenciales privadas **no se guardan en el navegador, GitHub ni Firestore**. El backend preparado recibe el Access Token y el secreto del webhook únicamente desde una sesión administradora y los guarda como versiones de secretos en Google Secret Manager.
 
-- `mercadopago@3.6.1`
-- `firebase-functions@7.4.0`
-- `firebase-admin@14.5.0`
+Cloud Functions preparadas:
 
-Funciones preparadas:
+- `saveMercadoPagoCredentials`
+- `createMeilanCheckout`
+- `mercadoPagoWebhook`
 
-- `createMeilanCheckout`: crea el pago de $3.000 CLP.
-- `mercadoPagoWebhook`: valida la firma del webhook, consulta el pago en Mercado Pago y activa/extiende 30 días de acceso.
+Región: `southamerica-west1`.
 
-Región: `southamerica-west1` (Santiago, Chile).
+Dependencias:
 
-### Credenciales privadas
+- `mercadopago`
+- `firebase-functions`
+- `firebase-admin`
+- `@google-cloud/secret-manager`
 
-Nunca colocar el Access Token ni el secreto del webhook en `config.js`.
+Para habilitar el guardado desde el panel administrador todavía hay que:
 
-Antes de desplegar las funciones, crear estos secretos en Firebase / Google Cloud Secret Manager:
+1. publicar las reglas nuevas de `firestore.rules`;
+2. habilitar facturación Blaze para Cloud Functions;
+3. desplegar las Functions;
+4. otorgar al servicio de Functions permisos para crear versiones y leer secretos en Secret Manager;
+5. cambiar `billing.adminCredentialSaveEnabled` y `billing.mercadoPagoEnabled` a `true`.
 
-- `MERCADOPAGO_ACCESS_TOKEN`
-- `MERCADOPAGO_WEBHOOK_SECRET`
+## Seguridad
 
-Después se despliegan las Functions y se cambia `billing.mercadoPagoEnabled` a `true` en `config.js`.
+Un usuario normal nunca ve el panel administrador. Aunque intente abrirlo desde el navegador, Firestore no le permite obtener un rol que no sea el suyo y el backend vuelve a comprobar que el UID sea administrador antes de aceptar credenciales.
 
-> Cloud Functions requiere que el proyecto Firebase tenga facturación Blaze habilitada para desplegar funciones.
-
-## Firestore
-
-Publicar `firestore.rules` en Firebase.
-
-El cliente puede:
-
-- leer únicamente su propio documento `meilan_subscriptions/{uid}`;
-- crear una sola prueba de 7 días usando timestamps del servidor.
-
-El cliente no puede activar ni extender un plan pagado. Eso solo lo hace el backend después de confirmar un pago aprobado de Mercado Pago.
-
-## Publicación web
-
-La interfaz continúa publicándose en GitHub Pages.
+La vista de administrador no convierte una cuenta por sí sola en administrador.
