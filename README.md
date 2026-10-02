@@ -22,3 +22,26 @@ La escritura manuscrita puede no ser reconocida de forma fiable por OCR. La apli
 ## Publicación
 
 El proyecto es estático y puede publicarse en GitHub Pages, Hostinger, Netlify o Vercel. Para usar cámara en navegador debe servirse mediante HTTPS o localhost durante desarrollo.
+
+
+## Acceso por correo y suscripciones (v0.6.0)
+
+La interfaz ya incluye:
+- Registro e inicio de sesión por correo y contraseña.
+- Sesión persistente y cierre de sesión.
+- Panel “Mi cuenta”.
+- Solicitud de plan mensual o anual.
+- Estado de suscripción: pendiente, activa, pago pendiente, cancelada o vencida.
+- Bloqueo opcional de la calculadora cuando no hay sesión o suscripción activa.
+
+### Conectar Supabase
+
+1. Crear un proyecto Supabase dedicado a Meilan.
+2. Ejecutar `supabase/setup.sql`.
+3. Editar `config.js` y completar `supabaseUrl` y `supabasePublishableKey`.
+4. Usar solamente una publishable key (o anon key legacy). Nunca colocar `service_role` en el navegador.
+5. Si se desea exigir una suscripción activa, cambiar `requireActiveSubscription` a `true` después de conectar el flujo de activación/pago.
+
+Las solicitudes de suscripción se crean con estado `pending`. Las políticas RLS impiden que un usuario cambie su propio estado a `active`.
+
+> Nota: Meilan sigue siendo una aplicación estática. El login y el estado de suscripción controlan la interfaz, pero para proteger contenido verdaderamente privado se requiere servir ese contenido desde un backend autorizado.
