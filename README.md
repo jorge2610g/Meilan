@@ -4,44 +4,46 @@ Web móvil para controlar la vida útil de productos en tienda a partir de la ta
 
 ## Funciones actuales
 
-- Cámara trasera del teléfono y carga de fotografías.
-- OCR en navegador con Tesseract.js para intentar leer PREP/PROD, fechas y horas.
-- Corrección manual de los datos detectados.
-- Base de productos y reglas de vida útil del documento entregado.
-- Cálculo de vencimiento oficial.
-- Estados: VIGENTE, POR VENCER y VENCIDO.
-- Comparación entre vencimiento escrito en la etiqueta y vencimiento calculado.
-- Aviso de almacenamiento refrigerado en reglas marcadas con ***.
+- Base de productos y reglas de vida útil.
+- Cálculos FR/FB y PREP/PROD independientes.
 - Historial local en el dispositivo.
 - Diseño responsive e instalable como web app.
-
-## Importante
-
-La escritura manuscrita puede no ser reconocida de forma fiable por OCR. La aplicación siempre permite revisar y corregir los datos antes de validar. Las celdas sin regla en la tabla fuente se mantienen sin regla: no se inventan duraciones.
+- Registro e inicio de sesión por correo y contraseña preparado con Firebase Authentication.
+- Panel “Mi cuenta”.
+- Solicitud de plan mensual o anual almacenada en Cloud Firestore.
+- Bloqueo opcional por sesión o suscripción activa.
 
 ## Publicación
 
-El proyecto es estático y puede publicarse en GitHub Pages, Hostinger, Netlify o Vercel. Para usar cámara en navegador debe servirse mediante HTTPS o localhost durante desarrollo.
+El proyecto es estático y puede publicarse en GitHub Pages, Hostinger, Netlify o Vercel.
 
+## Acceso por correo y suscripciones (v0.7.0)
 
-## Acceso por correo y suscripciones (v0.6.0)
+Meilan usa Firebase para la capa de cuenta:
 
-La interfaz ya incluye:
-- Registro e inicio de sesión por correo y contraseña.
-- Sesión persistente y cierre de sesión.
-- Panel “Mi cuenta”.
-- Solicitud de plan mensual o anual.
-- Estado de suscripción: pendiente, activa, pago pendiente, cancelada o vencida.
-- Bloqueo opcional de la calculadora cuando no hay sesión o suscripción activa.
+- **Firebase Authentication**: correo y contraseña.
+- **Cloud Firestore**: documento de suscripción por usuario.
+- **Reglas de Firestore**: el usuario puede leer su propia suscripción y crear/actualizar solamente una solicitud con estado `pending`; no puede autoactivarse.
 
-### Conectar Supabase
+### Conectar Firebase
 
-1. Crear un proyecto Supabase dedicado a Meilan.
-2. Ejecutar `supabase/setup.sql`.
-3. Editar `config.js` y completar `supabaseUrl` y `supabasePublishableKey`.
-4. Usar solamente una publishable key (o anon key legacy). Nunca colocar `service_role` en el navegador.
-5. Si se desea exigir una suscripción activa, cambiar `requireActiveSubscription` a `true` después de conectar el flujo de activación/pago.
+1. Crear un proyecto Firebase dedicado a Meilan.
+2. Crear una **Web App** dentro del proyecto.
+3. En Firebase Authentication, habilitar **Email/Password**.
+4. Crear una base de datos **Cloud Firestore**.
+5. Publicar las reglas de `firestore.rules`.
+6. Copiar la configuración Web App de Firebase en `config.js`.
+7. Si se desea exigir verificación de correo, cambiar `requireVerifiedEmail` a `true`.
+8. Si se desea exigir suscripción activa, cambiar `requireActiveSubscription` a `true` solamente cuando exista un flujo administrativo/pago que pueda establecer `status: "active"`.
 
-Las solicitudes de suscripción se crean con estado `pending`. Las políticas RLS impiden que un usuario cambie su propio estado a `active`.
+La configuración Web App de Firebase se usa en el navegador para identificar el proyecto. No se deben publicar claves privadas de Admin SDK, cuentas de servicio ni credenciales de servidor.
 
-> Nota: Meilan sigue siendo una aplicación estática. El login y el estado de suscripción controlan la interfaz, pero para proteger contenido verdaderamente privado se requiere servir ese contenido desde un backend autorizado.
+Las solicitudes se guardan en:
+
+```
+meilan_subscriptions/{uid}
+```
+
+con los campos `user_id`, `plan_code`, `status`, `created_at` y `updated_at`.
+
+> Nota: Meilan sigue siendo una aplicación estática. El login y el estado de suscripción controlan la interfaz, pero contenido verdaderamente privado debe servirse desde un backend autorizado.
