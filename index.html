@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.6.0">
+  <link rel="stylesheet" href="styles.css?v=0.7.0">
 </head>
 <body>
 <header class="topbar">
@@ -24,7 +24,7 @@
     <button id="reloadAppBtn" class="btn reload-btn" type="button" title="Recargar y buscar actualizaciones">↻ Recargar</button>
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>\n    <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.6.0</span>
+    <span class="version">v0.7.0</span>
   </div>
 </header>
 
@@ -248,7 +248,7 @@
 
     <div id="accountSetupNotice" class="account-setup-notice" hidden>
       <strong>Panel instalado, backend pendiente.</strong>
-      <p>La calculadora sigue disponible. Para activar cuentas reales por correo hay que conectar un proyecto Supabase dedicado a Meilan.</p>
+      <p>La calculadora sigue disponible. Para activar cuentas reales por correo hay que conectar un proyecto Firebase dedicado a Meilan.</p>
     </div>
 
     <div id="accountMessage" class="account-message" hidden></div>
@@ -266,7 +266,7 @@
         <button id="loginBtn" class="btn primary" type="button">Iniciar sesión</button>
         <button id="registerBtn" class="btn ghost" type="button">Crear cuenta</button>
       </div>
-      <p class="helper">El registro usa confirmación por correo cuando esa opción está habilitada en Supabase.</p>
+      <p class="helper">El registro puede exigir verificación de correo cuando esa opción esté activada en la configuración de Meilan.</p>
     </div>
 
     <div id="accountPanel" class="account-panel" hidden>
@@ -304,10 +304,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=0.6.0"></script>
-<script src="auth.js?v=0.6.0"></script>
-<script src="data.js?v=0.6.0"></script>
-<script src="app.js?v=0.6.0"></script>
+<script src="config.js?v=0.7.0"></script>
+<script src="auth.js?v=0.7.0"></script>
+<script src="data.js?v=0.7.0"></script>
+<script src="app.js?v=0.7.0"></script>
 </body>
 </html>
