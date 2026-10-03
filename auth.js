@@ -5,6 +5,7 @@
   const TRIAL_DAYS = Number(billing.trialDays || 7);
   const PLAN_PRICE_CLP = Number(billing.planPriceClp || 3000);
   const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
+  const ADMIN_EMAILS = (cfg.adminEmails || []).map(email => String(email).trim().toLowerCase());
   const $ = id => document.getElementById(id);
 
   const els = {
@@ -174,10 +175,15 @@
     setMessage("");
   }
 
-  async function checkAdminRole(uid){
-    if(!state.db || !uid || !state.api) return false;
+  async function checkAdminRole(user){
+    if(!user) return false;
+
+    const email = String(user.email || "").trim().toLowerCase();
+    if(email && ADMIN_EMAILS.includes(email)) return true;
+
+    if(!state.db || !user.uid || !state.api) return false;
     try{
-      const ref = state.api.doc(state.db, "meilan_admins", uid);
+      const ref = state.api.doc(state.db, "meilan_admins", user.uid);
       const snap = await state.api.getDoc(ref);
       return snap.exists() && snap.data()?.active === true;
     }catch(error){
@@ -396,7 +402,7 @@
       return;
     }
 
-    state.isAdmin = await checkAdminRole(state.user.uid);
+    state.isAdmin = await checkAdminRole(state.user);
 
     if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
       state.subscription = null;
@@ -446,7 +452,7 @@
       }
 
       if(state.loginMode === "admin"){
-        const admin = await checkAdminRole(credential.user.uid);
+        const admin = await checkAdminRole(credential.user);
         if(!admin){
           await state.api.signOut(state.auth);
           setMessage("Esta cuenta no tiene acceso de administrador.", "error");
