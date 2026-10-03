@@ -4,7 +4,6 @@
   const billing = cfg.billing || {};
   const TRIAL_DAYS = Number(billing.trialDays || 7);
   const PLAN_PRICE_CLP = Number(billing.planPriceClp || 3000);
-  const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const ADMIN_EMAILS = (cfg.adminEmails || []).map(email => String(email).trim().toLowerCase());
   const $ = id => document.getElementById(id);
 
@@ -35,7 +34,6 @@
     adminToUserBtn: $("adminToUserBtn"),
     adminLogoutBtn: $("adminLogoutBtn"),
     mpAccessToken: $("mpAccessToken"),
-    mpWebhookSecret: $("mpWebhookSecret"),
     saveMpCredentialsBtn: $("saveMpCredentialsBtn"),
     mpCredentialStatus: $("mpCredentialStatus"),
     subscriptionStatus: $("subscriptionStatus"),
@@ -55,7 +53,6 @@
     firebaseApp: null,
     auth: null,
     db: null,
-    functions: null,
     user: null,
     subscription: null,
     isAdmin: false,
@@ -71,13 +68,44 @@
     return Boolean(f.apiKey && f.authDomain && f.projectId && f.appId);
   }
 
+  function paymentApiBase(){
+    return String(billing.paymentApiBaseUrl || "").replace(/\/$/, "");
+  }
+
+  function paymentBackendReady(){
+    return Boolean(paymentApiBase());
+  }
+
+  async function paymentApi(path, options = {}){
+    if(!state.user) throw new Error("Debes iniciar sesión.");
+    const base = paymentApiBase();
+    if(!base) throw new Error("El backend seguro de pagos todavía no está conectado.");
+
+    const idToken = await state.user.getIdToken();
+    const response = await fetch(base + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + idToken,
+        ...(options.headers || {})
+      }
+    });
+
+    let data = null;
+    try{ data = await response.json(); }catch{}
+
+    if(!response.ok){
+      throw new Error(data?.error || data?.message || "No se pudo completar la operación.");
+    }
+    return data || {};
+  }
+
   async function loadFirebase(){
     const base = "https://www.gstatic.com/firebasejs/" + FIREBASE_VERSION + "/";
-    const [appApi, authApi, firestoreApi, functionsApi] = await Promise.all([
+    const [appApi, authApi, firestoreApi] = await Promise.all([
       import(base + "firebase-app.js"),
       import(base + "firebase-auth.js"),
-      import(base + "firebase-firestore.js"),
-      import(base + "firebase-functions.js")
+      import(base + "firebase-firestore.js")
     ]);
 
     state.api = {
@@ -94,9 +122,7 @@
       doc: firestoreApi.doc,
       getDoc: firestoreApi.getDoc,
       setDoc: firestoreApi.setDoc,
-      serverTimestamp: firestoreApi.serverTimestamp,
-      getFunctions: functionsApi.getFunctions,
-      httpsCallable: functionsApi.httpsCallable
+      serverTimestamp: firestoreApi.serverTimestamp
     };
   }
 
@@ -137,8 +163,8 @@
       els.saveMpCredentialsBtn
     ].filter(Boolean).forEach(btn => btn.disabled = busy);
 
-    if(els.buyPlanBtn && !billing.mercadoPagoEnabled) els.buyPlanBtn.disabled = true;
-    if(els.saveMpCredentialsBtn && !billing.adminCredentialSaveEnabled) els.saveMpCredentialsBtn.disabled = true;
+    if(els.buyPlanBtn && (!billing.mercadoPagoEnabled || !paymentBackendReady())) els.buyPlanBtn.disabled = true;
+    if(els.saveMpCredentialsBtn && (!billing.adminCredentialSaveEnabled || !paymentBackendReady())) els.saveMpCredentialsBtn.disabled = true;
   }
 
   function openModal(){
@@ -366,10 +392,11 @@
     }
 
     if(els.mpCredentialStatus){
-      els.mpCredentialStatus.textContent = billing.adminCredentialSaveEnabled
+      const ready = billing.adminCredentialSaveEnabled && paymentBackendReady();
+      els.mpCredentialStatus.textContent = ready
         ? "Guardado seguro habilitado"
-        : "Pendiente de desplegar backend seguro";
-      els.mpCredentialStatus.className = "status-badge " + (billing.adminCredentialSaveEnabled ? "ok" : "soon");
+        : "Backend seguro pendiente";
+      els.mpCredentialStatus.className = "status-badge " + (ready ? "ok" : "soon");
     }
 
     renderPlan();
@@ -388,6 +415,23 @@
     }catch(error){
       console.warn("No se pudo leer el acceso de Meilan:", error);
       setMessage("La cuenta inició sesión, pero no se pudo leer el estado del plan.", "warning");
+    }
+
+    if(paymentBackendReady()){
+      try{
+        const remote = await paymentApi("/entitlement");
+        if(remote?.active && remote?.paidUntil){
+          state.subscription = {
+            ...(state.subscription || {}),
+            user_id: state.user.uid,
+            plan_code: "monthly_30d",
+            status: "active",
+            current_period_end: remote.paidUntil
+          };
+        }
+      }catch(error){
+        console.warn("No se pudo consultar el acceso pagado:", error);
+      }
     }
   }
 
@@ -572,10 +616,10 @@
   }
 
   async function buyPlan(){
-    if(!state.user || !state.functions || state.busy || !state.api) return;
+    if(!state.user || state.busy || !state.api) return;
 
-    if(!billing.mercadoPagoEnabled){
-      setMessage("Mercado Pago está preparado, pero falta desplegar el backend de pagos.", "warning");
+    if(!billing.mercadoPagoEnabled || !paymentBackendReady()){
+      setMessage("Mercado Pago está preparado, pero falta conectar el backend seguro de pagos.", "warning");
       return;
     }
 
@@ -583,9 +627,11 @@
     setMessage("Abriendo Mercado Pago…");
 
     try{
-      const createCheckout = state.api.httpsCallable(state.functions, "createMeilanCheckout");
-      const result = await createCheckout({});
-      const checkoutUrl = result?.data?.checkoutUrl;
+      const result = await paymentApi("/checkout", {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      const checkoutUrl = result?.checkoutUrl;
 
       if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de pago.");
 
@@ -600,38 +646,37 @@
   }
 
   async function saveMercadoPagoCredentials(){
-    if(!state.isAdmin || !state.functions || state.busy || !state.api){
+    if(!state.isAdmin || state.busy || !state.api){
       setMessage("Necesitas acceso administrador.", "error");
       return;
     }
 
-    if(!billing.adminCredentialSaveEnabled){
-      setMessage("El panel administrador ya está listo, pero falta desplegar la función segura que guarda las credenciales.", "warning");
+    if(!billing.adminCredentialSaveEnabled || !paymentBackendReady()){
+      setMessage("El panel ya usa solo Access Token, pero falta conectar el backend seguro que lo recibirá.", "warning");
       return;
     }
 
     const accessToken = els.mpAccessToken?.value.trim() || "";
-    const webhookSecret = els.mpWebhookSecret?.value.trim() || "";
 
-    if(accessToken.length < 20 || webhookSecret.length < 12){
-      setMessage("Completa el Access Token y el secreto del webhook de Mercado Pago.", "error");
+    if(accessToken.length < 20){
+      setMessage("Ingresa el Access Token de Mercado Pago.", "error");
       return;
     }
 
     setBusy(true);
-    setMessage("Guardando credenciales de forma segura…");
+    setMessage("Guardando Access Token de forma segura…");
 
     try{
-      const saveCredentials = state.api.httpsCallable(state.functions, "saveMercadoPagoCredentials");
-      await saveCredentials({accessToken, webhookSecret});
+      await paymentApi("/admin/mercadopago", {
+        method: "POST",
+        body: JSON.stringify({accessToken})
+      });
 
       if(els.mpAccessToken) els.mpAccessToken.value = "";
-      if(els.mpWebhookSecret) els.mpWebhookSecret.value = "";
-
-      setMessage("Credenciales guardadas en Secret Manager. No quedaron almacenadas en el navegador ni en Firestore.", "success");
+      setMessage("Access Token guardado en el backend seguro. No quedó almacenado en GitHub, Firestore ni en el navegador.", "success");
     }catch(error){
-      console.error("No se pudieron guardar las credenciales:", error);
-      setMessage(friendlyError(error, "No se pudieron guardar las credenciales."), "error");
+      console.error("No se pudo guardar el Access Token:", error);
+      setMessage(friendlyError(error, "No se pudo guardar el Access Token."), "error");
     }finally{
       setBusy(false);
       render();
@@ -704,7 +749,6 @@
       state.firebaseApp = state.api.initializeApp(cfg.firebaseConfig);
       state.auth = state.api.getAuth(state.firebaseApp);
       state.db = state.api.getFirestore(state.firebaseApp);
-      state.functions = state.api.getFunctions(state.firebaseApp, FUNCTIONS_REGION);
 
       await state.api.setPersistence(state.auth, state.api.browserLocalPersistence);
 
