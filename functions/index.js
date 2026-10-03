@@ -17,22 +17,114 @@ const db = getFirestore();
 const REGION = "southamerica-west1";
 const PROJECT_ID = "meilan-95042";
 const SITE_URL = "https://meilan.online/";
-const PLAN_PRICE_CLP = 3000;
-const PLAN_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EMAILS = new Set(["scuentas150@gmail.com"]);
 const PRIVATE_CONFIG_PATH = "meilan_private/mercadopago";
+const PRIVATE_PLANS_PATH = "meilan_private/plans";
+
+async function isAdminAuth(auth) {
+  if (!auth?.uid) return false;
+
+  const email = String(auth.token?.email || "").trim().toLowerCase();
+  if (email && ADMIN_EMAILS.has(email)) return true;
+
+  const snap = await db.collection("meilan_admins").doc(auth.uid).get();
+  return snap.exists && snap.data()?.active === true;
+}
 
 async function requireAdmin(auth) {
   if (!auth?.uid) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
-
-  const email = String(auth.token?.email || "").trim().toLowerCase();
-  if (email && ADMIN_EMAILS.has(email)) return;
-
-  const snap = await db.collection("meilan_admins").doc(auth.uid).get();
-  if (!snap.exists || snap.data()?.active !== true) {
+  if (!(await isAdminAuth(auth))) {
     throw new HttpsError("permission-denied", "No tienes acceso de administrador.");
   }
+}
+
+function cleanText(value, max = 160) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function normalizePlanInput(data) {
+  const name = cleanText(data?.name, 80);
+  const description = cleanText(data?.description, 240);
+  const type = data?.type === "trial" ? "trial" : "paid";
+  const days = Math.max(1, Math.min(3650, Math.trunc(Number(data?.days || 0))));
+  const rawPrice = Math.trunc(Number(data?.priceClp || 0));
+  const priceClp = type === "trial" ? 0 : Math.max(1, Math.min(100000000, rawPrice));
+  const sortOrder = Math.max(-100000, Math.min(100000, Math.trunc(Number(data?.sortOrder || 0))));
+  const active = data?.active !== false;
+
+  if (!name) throw new HttpsError("invalid-argument", "El plan necesita un nombre.");
+  if (!Number.isFinite(days) || days < 1) {
+    throw new HttpsError("invalid-argument", "La duración del plan no es válida.");
+  }
+  if (type === "paid" && (!Number.isFinite(priceClp) || priceClp < 1)) {
+    throw new HttpsError("invalid-argument", "El precio del plan no es válido.");
+  }
+
+  return { name, description, type, days, priceClp, sortOrder, active };
+}
+
+async function ensureDefaultPlans() {
+  const markerRef = db.doc(PRIVATE_PLANS_PATH);
+  const marker = await markerRef.get();
+  if (marker.exists && marker.data()?.initialized === true) return;
+
+  const batch = db.batch();
+  const now = FieldValue.serverTimestamp();
+
+  batch.set(db.collection("meilan_plans").doc("trial_7d"), {
+    name: "Prueba gratis",
+    description: "Prueba todas las funciones de Meilan sin costo.",
+    type: "trial",
+    days: 7,
+    price_clp: 0,
+    active: true,
+    sort_order: 10,
+    created_at: now,
+    updated_at: now
+  }, { merge: true });
+
+  batch.set(db.collection("meilan_plans").doc("monthly_30d"), {
+    name: "Plan 30 días",
+    description: "Pago único por 30 días de acceso. No se renueva automáticamente.",
+    type: "paid",
+    days: 30,
+    price_clp: 3000,
+    active: true,
+    sort_order: 20,
+    created_at: now,
+    updated_at: now
+  }, { merge: true });
+
+  batch.set(markerRef, {
+    initialized: true,
+    initialized_at: now
+  }, { merge: true });
+
+  await batch.commit();
+}
+
+function serializePlan(doc) {
+  const data = doc.data() || {};
+  return {
+    id: doc.id,
+    name: cleanText(data.name, 80),
+    description: cleanText(data.description, 240),
+    type: data.type === "trial" ? "trial" : "paid",
+    days: Number(data.days || 0),
+    priceClp: Number(data.price_clp || 0),
+    active: data.active !== false,
+    sortOrder: Number(data.sort_order || 0)
+  };
+}
+
+async function readPlans(includeInactive = false) {
+  await ensureDefaultPlans();
+  const snap = await db.collection("meilan_plans").get();
+  return snap.docs
+    .map(serializePlan)
+    .filter(plan => includeInactive || plan.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "es"));
 }
 
 async function readAccessToken() {
@@ -76,6 +168,121 @@ exports.saveMercadoPagoAccessToken = onCall(
   }
 );
 
+exports.listMeilanPlans = onCall(
+  { region: REGION },
+  async request => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+    return { plans: await readPlans(false) };
+  }
+);
+
+exports.listMeilanPlansAdmin = onCall(
+  { region: REGION },
+  async request => {
+    await requireAdmin(request.auth);
+    return { plans: await readPlans(true) };
+  }
+);
+
+exports.saveMeilanPlan = onCall(
+  { region: REGION },
+  async request => {
+    await requireAdmin(request.auth);
+    await ensureDefaultPlans();
+
+    const plan = normalizePlanInput(request.data || {});
+    const requestedId = cleanText(request.data?.id, 100);
+    const ref = requestedId
+      ? db.collection("meilan_plans").doc(requestedId)
+      : db.collection("meilan_plans").doc();
+
+    const existing = await ref.get();
+    const payload = {
+      name: plan.name,
+      description: plan.description,
+      type: plan.type,
+      days: plan.days,
+      price_clp: plan.priceClp,
+      active: plan.active,
+      sort_order: plan.sortOrder,
+      updated_at: FieldValue.serverTimestamp(),
+      updated_by: request.auth.uid
+    };
+
+    if (!existing.exists) payload.created_at = FieldValue.serverTimestamp();
+
+    await ref.set(payload, { merge: true });
+    return { ok: true, planId: ref.id };
+  }
+);
+
+exports.deleteMeilanPlan = onCall(
+  { region: REGION },
+  async request => {
+    await requireAdmin(request.auth);
+    const planId = cleanText(request.data?.planId, 100);
+    if (!planId) throw new HttpsError("invalid-argument", "Falta el plan.");
+    await db.collection("meilan_plans").doc(planId).delete();
+    return { ok: true };
+  }
+);
+
+exports.startMeilanTrial = onCall(
+  { region: REGION },
+  async request => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    await ensureDefaultPlans();
+
+    const uid = request.auth.uid;
+    const planId = cleanText(request.data?.planId, 100);
+    const planRef = db.collection("meilan_plans").doc(planId);
+    const subscriptionRef = db.collection("meilan_subscriptions").doc(uid);
+
+    await db.runTransaction(async tx => {
+      const [planSnap, subscriptionSnap] = await Promise.all([
+        tx.get(planRef),
+        tx.get(subscriptionRef)
+      ]);
+
+      if (!planSnap.exists) {
+        throw new HttpsError("not-found", "Ese plan ya no existe.");
+      }
+
+      const plan = serializePlan(planSnap);
+      if (!plan.active || plan.type !== "trial") {
+        throw new HttpsError("failed-precondition", "La prueba seleccionada no está disponible.");
+      }
+
+      if (subscriptionSnap.exists) {
+        throw new HttpsError("failed-precondition", "Esta cuenta ya utilizó o tiene configurado un período de acceso.");
+      }
+
+      const now = Timestamp.now();
+      const end = Timestamp.fromMillis(now.toMillis() + plan.days * DAY_MS);
+
+      tx.set(subscriptionRef, {
+        user_id: uid,
+        plan_code: plan.id,
+        plan_name: plan.name,
+        status: "trial",
+        trial_used: true,
+        trial_started_at: now,
+        trial_end: end,
+        trial_days_snapshot: plan.days,
+        created_at: FieldValue.serverTimestamp(),
+        updated_at: FieldValue.serverTimestamp()
+      });
+    });
+
+    return { ok: true };
+  }
+);
+
 exports.createMeilanCheckout = onCall(
   { region: REGION },
   async request => {
@@ -83,9 +290,37 @@ exports.createMeilanCheckout = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
+    await ensureDefaultPlans();
+
     const uid = request.auth.uid;
     const email = request.auth.token?.email || undefined;
-    const externalReference = `meilan:${uid}:${Date.now()}`;
+    const planId = cleanText(request.data?.planId, 100);
+    const planSnap = await db.collection("meilan_plans").doc(planId).get();
+
+    if (!planSnap.exists) {
+      throw new HttpsError("not-found", "Ese plan ya no existe.");
+    }
+
+    const plan = serializePlan(planSnap);
+    if (!plan.active || plan.type !== "paid") {
+      throw new HttpsError("failed-precondition", "Ese plan no está disponible para compra.");
+    }
+
+    const checkoutRef = db.collection("meilan_checkouts").doc();
+    const externalReference = `meilan:${checkoutRef.id}`;
+
+    await checkoutRef.set({
+      checkout_id: checkoutRef.id,
+      user_id: uid,
+      plan_id: plan.id,
+      plan_name: plan.name,
+      plan_days: plan.days,
+      amount: plan.priceClp,
+      currency: "CLP",
+      status: "created",
+      external_reference: externalReference,
+      created_at: FieldValue.serverTimestamp()
+    });
 
     try {
       const preference = new Preference(await mercadoPagoClient());
@@ -93,19 +328,19 @@ exports.createMeilanCheckout = onCall(
       const body = {
         items: [
           {
-            id: "meilan-plan-30d",
-            title: "Meilan · Plan 30 días",
-            description: "30 días de acceso a Meilan",
+            id: plan.id,
+            title: `Meilan · ${plan.name}`,
+            description: plan.description || `${plan.days} días de acceso a Meilan`,
             currency_id: "CLP",
             quantity: 1,
-            unit_price: PLAN_PRICE_CLP
+            unit_price: plan.priceClp
           }
         ],
         external_reference: externalReference,
         metadata: {
           firebase_uid: uid,
-          plan_code: "monthly_30d",
-          plan_days: PLAN_DAYS
+          plan_id: plan.id,
+          plan_days: plan.days
         },
         back_urls: {
           success: SITE_URL + "?payment=success",
@@ -125,11 +360,21 @@ exports.createMeilanCheckout = onCall(
         throw new Error("Mercado Pago no devolvió init_point.");
       }
 
+      await checkoutRef.set({
+        preference_id: result.id || null,
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true });
+
       return {
         checkoutUrl: result.init_point,
         preferenceId: result.id || null
       };
     } catch (error) {
+      await checkoutRef.set({
+        status: "error",
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true });
+
       console.error("Error creando preferencia Mercado Pago:", error?.message || error);
       if (error instanceof HttpsError) throw error;
       throw new HttpsError("internal", "No se pudo iniciar el pago.");
@@ -159,8 +404,6 @@ exports.mercadoPagoWebhook = onRequest(
     }
 
     try {
-      // No confiamos en el contenido de la notificación para activar acceso.
-      // Usamos solamente su ID y consultamos el pago directamente a Mercado Pago.
       const paymentApi = new Payment(await mercadoPagoClient());
       const payment = await paymentApi.get({ id: dataId });
 
@@ -172,53 +415,84 @@ exports.mercadoPagoWebhook = onRequest(
       const amount = Number(payment.transaction_amount);
       const currency = String(payment.currency_id || "").toUpperCase();
       const externalReference = String(payment.external_reference || "");
-      const parts = externalReference.split(":");
+      const match = /^meilan:([A-Za-z0-9_-]+)$/.exec(externalReference);
 
+      if (!match) {
+        res.status(400).send("payment_mismatch");
+        return;
+      }
+
+      const checkoutId = match[1];
+      const checkoutRef = db.collection("meilan_checkouts").doc(checkoutId);
+      const checkoutSnap = await checkoutRef.get();
+
+      if (!checkoutSnap.exists) {
+        res.status(400).send("checkout_not_found");
+        return;
+      }
+
+      const checkout = checkoutSnap.data() || {};
       if (
-        parts.length < 3 ||
-        parts[0] !== "meilan" ||
-        !parts[1] ||
-        amount !== PLAN_PRICE_CLP ||
-        currency !== "CLP"
+        checkout.external_reference !== externalReference ||
+        amount !== Number(checkout.amount) ||
+        currency !== String(checkout.currency || "").toUpperCase() ||
+        !checkout.user_id ||
+        !checkout.plan_id ||
+        Number(checkout.plan_days) < 1
       ) {
-        console.warn("Pago Mercado Pago no coincide con el plan Meilan.", {
+        console.warn("Pago Mercado Pago no coincide con el checkout Meilan.", {
           paymentId: payment.id,
           amount,
           currency,
-          externalReference
+          externalReference,
+          checkoutId
         });
         res.status(400).send("payment_mismatch");
         return;
       }
 
-      const uid = parts[1];
+      const uid = checkout.user_id;
+      const planDays = Number(checkout.plan_days);
       const paymentId = String(payment.id || dataId);
       const paymentRef = db.collection("meilan_payments").doc(paymentId);
       const subscriptionRef = db.collection("meilan_subscriptions").doc(uid);
 
       await db.runTransaction(async tx => {
-        const [paymentSnap, subscriptionSnap] = await Promise.all([
+        const [paymentSnap, subscriptionSnap, currentCheckoutSnap] = await Promise.all([
           tx.get(paymentRef),
-          tx.get(subscriptionRef)
+          tx.get(subscriptionRef),
+          tx.get(checkoutRef)
         ]);
 
         if (paymentSnap.exists) return;
+
+        const currentCheckout = currentCheckoutSnap.data() || {};
+        if (currentCheckout.status === "paid") return;
 
         const nowMs = Date.now();
         const current = subscriptionSnap.exists ? subscriptionSnap.data() : null;
         const currentEnd = current?.current_period_end?.toMillis
           ? current.current_period_end.toMillis()
           : 0;
+        const trialEnd = current?.trial_end?.toMillis
+          ? current.trial_end.toMillis()
+          : 0;
 
-        const baseMs = Math.max(nowMs, currentEnd);
-        const newEnd = Timestamp.fromMillis(baseMs + PLAN_DAYS * DAY_MS);
+        const baseMs = Math.max(nowMs, currentEnd, trialEnd);
+        const newEnd = Timestamp.fromMillis(baseMs + planDays * DAY_MS);
+        const existingStart = current?.status === "active" && current?.current_period_start
+          ? current.current_period_start
+          : Timestamp.fromMillis(nowMs);
 
         const subscriptionData = {
           user_id: uid,
-          plan_code: "monthly_30d",
+          plan_code: checkout.plan_id,
+          plan_name: checkout.plan_name || "Plan Meilan",
           status: "active",
-          current_period_start: Timestamp.fromMillis(baseMs),
+          trial_used: current?.trial_used === true || Boolean(current?.trial_started_at),
+          current_period_start: existingStart,
           current_period_end: newEnd,
+          plan_days_snapshot: planDays,
           last_payment_id: paymentId,
           updated_at: FieldValue.serverTimestamp()
         };
@@ -231,6 +505,9 @@ exports.mercadoPagoWebhook = onRequest(
         tx.set(paymentRef, {
           user_id: uid,
           payment_id: paymentId,
+          plan_id: checkout.plan_id,
+          plan_name: checkout.plan_name || null,
+          plan_days: planDays,
           status: payment.status,
           amount,
           currency,
@@ -238,6 +515,12 @@ exports.mercadoPagoWebhook = onRequest(
           approved_at: payment.date_approved || null,
           created_at: FieldValue.serverTimestamp()
         });
+        tx.set(checkoutRef, {
+          status: "paid",
+          payment_id: paymentId,
+          paid_at: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp()
+        }, { merge: true });
       });
 
       res.status(200).send("ok");
