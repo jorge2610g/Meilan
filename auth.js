@@ -473,8 +473,8 @@
 
       const meta = document.createElement("small");
       meta.textContent = [
-        plan.type === "trial" ? "Prueba" : "Pagado",
-        plan.days + " días",
+        plan.type === "trial" ? "Prueba" : "Suscripción mensual",
+        plan.type === "trial" ? plan.days + " días" : "Renovación cada mes",
         priceText(plan),
         plan.active ? "Visible" : "Oculto"
       ].join(" · ");
