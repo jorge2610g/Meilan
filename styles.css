@@ -437,3 +437,18 @@ body.auth-locked #appContent{display:none}
   .admin-plan-actions{justify-content:stretch}
   .admin-plan-actions .btn{flex:1}
 }
+
+
+/* Suscripción mensual v0.12.0 */
+.recurring-subscription-state{
+  margin-top:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+@media(max-width:700px){
+  .recurring-subscription-state{display:grid}
+  .recurring-subscription-state .btn{width:100%}
+}
