@@ -130,7 +130,7 @@
       "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión.",
       "functions/unauthenticated": "Debes iniciar sesión para continuar.",
       "functions/permission-denied": "Esta cuenta no tiene permisos de administrador.",
-      "functions/failed-precondition": "Esta operación no está disponible para esta cuenta.",
+      "functions/failed-precondition": error?.message || "Esta operación no está disponible para esta cuenta.",
       "functions/not-found": "El plan seleccionado ya no existe.",
       "functions/invalid-argument": "Revisa los datos ingresados.",
       "functions/internal": "No se pudo completar la operación."
