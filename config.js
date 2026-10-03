@@ -22,9 +22,9 @@ window.MEILAN_CONFIG = {
     trialDays: 7,
     planDays: 30,
     planPriceClp: 3000,
-    functionsRegion: "southamerica-west1",
+    // URL del backend seguro de pagos. Se completa al desplegar el Worker.
+    paymentApiBaseUrl: "",
 
-    // Activar después de desplegar Cloud Functions.
     mercadoPagoEnabled: false,
     adminCredentialSaveEnabled: false
   }
