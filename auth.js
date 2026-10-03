@@ -5,6 +5,7 @@
   const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const ADMIN_EMAILS = (cfg.adminEmails || []).map(email => String(email).trim().toLowerCase());
   const LOGIN_MODE_KEY = "meilan_login_mode_v1";
+  const SESSION_HINT_KEY = "meilan_session_hint_v1";
   const $ = id => document.getElementById(id);
 
   const els = {
@@ -77,6 +78,8 @@
     loginMode: "user",
     configured: false,
     busy: false,
+    authReady: false,
+    sessionHint: null,
     api: null
   };
 
@@ -194,6 +197,46 @@
   function clearSavedLoginMode(){
     try{
       localStorage.removeItem(LOGIN_MODE_KEY);
+    }catch{
+      // Nada que limpiar.
+    }
+  }
+
+  function readSessionHint(){
+    try{
+      const raw = localStorage.getItem(SESSION_HINT_KEY);
+      if(!raw) return null;
+      const parsed = JSON.parse(raw);
+      if(parsed?.loggedIn !== true) return null;
+      return {
+        loggedIn: true,
+        email: String(parsed.email || ""),
+        mode: parsed.mode === "admin" ? "admin" : "user"
+      };
+    }catch{
+      return null;
+    }
+  }
+
+  function saveSessionHint(user, mode = state.loginMode){
+    if(!user) return;
+    const hint = {
+      loggedIn: true,
+      email: String(user.email || ""),
+      mode: mode === "admin" ? "admin" : "user"
+    };
+    state.sessionHint = hint;
+    try{
+      localStorage.setItem(SESSION_HINT_KEY, JSON.stringify(hint));
+    }catch{
+      // La pista local solo evita parpadeos; no concede permisos.
+    }
+  }
+
+  function clearSessionHint(){
+    state.sessionHint = null;
+    try{
+      localStorage.removeItem(SESSION_HINT_KEY);
     }catch{
       // Nada que limpiar.
     }
@@ -339,7 +382,11 @@
     let title = "";
     let text = "";
 
-    if(state.configured && cfg.requireLogin !== false && !state.user){
+    if(!state.authReady && state.sessionHint?.loggedIn){
+      // La sesión persistida se está restaurando. Evitamos mostrar durante unos
+      // milisegundos la pantalla de "inicia sesión" a un usuario ya autenticado.
+      locked = false;
+    }else if(state.configured && cfg.requireLogin !== false && !state.user){
       locked = true;
       title = "Inicia sesión para usar Meilan";
       text = "Accede con tu correo electrónico para continuar.";
@@ -540,9 +587,13 @@
     if(els.accountPanel) els.accountPanel.hidden = !state.user || showAdmin;
 
     if(els.openBtn){
-      els.openBtn.textContent = state.user
-        ? (showAdmin ? "Administrador" : "Mi cuenta")
-        : "Acceder";
+      if(state.user){
+        els.openBtn.textContent = showAdmin ? "Administrador" : "Mi cuenta";
+      }else if(!state.authReady && state.sessionHint?.loggedIn){
+        els.openBtn.textContent = state.sessionHint.mode === "admin" ? "Administrador" : "Mi cuenta";
+      }else{
+        els.openBtn.textContent = "Acceder";
+      }
     }
 
     if(state.user && els.signedEmail) els.signedEmail.textContent = state.user.email || "Cuenta Meilan";
@@ -708,6 +759,7 @@
     try{
       const credential = await state.api.signInWithEmailAndPassword(state.auth, email, password);
       rememberLoginMode(state.loginMode);
+      saveSessionHint(credential.user, state.loginMode);
 
       if(cfg.requireVerifiedEmail && !credential.user.emailVerified){
         await state.api.sendEmailVerification(credential.user);
@@ -774,6 +826,7 @@
       state.isAdmin = false;
       state.adminSession = false;
       clearSavedLoginMode();
+      clearSessionHint();
       setLoginMode("user", false);
       render();
       setMessage("Sesión cerrada.", "success");
@@ -1107,7 +1160,9 @@
       });
     });
 
-    setLoginMode(savedLoginMode(), false);
+    state.sessionHint = readSessionHint();
+    const initialMode = state.sessionHint?.mode || savedLoginMode();
+    setLoginMode(initialMode, false);
     resetPlanEditor();
     state.configured = credentialsReady();
     render();
@@ -1125,9 +1180,17 @@
       state.db = state.api.getFirestore(state.firebaseApp);
       state.functions = state.api.getFunctions(state.firebaseApp, FUNCTIONS_REGION);
 
-      await state.api.setPersistence(state.auth, state.api.browserLocalPersistence);
-
+      // Escuchamos la sesión inmediatamente. Antes esperábamos a setPersistence(),
+      // agregando una espera visible en cada apertura.
       state.api.onAuthStateChanged(state.auth, user => {
+        state.authReady = true;
+
+        if(user){
+          saveSessionHint(user, state.loginMode);
+        }else{
+          clearSessionHint();
+        }
+
         handleUser(user).then(() => {
           handlePaymentReturn();
         }).catch(error => {
@@ -1135,6 +1198,11 @@
           setMessage("No se pudo actualizar el estado de la cuenta.", "error");
         });
       });
+
+      // La persistencia local es una preferencia de sesión; no debe bloquear el
+      // primer render ni la restauración del usuario.
+      state.api.setPersistence(state.auth, state.api.browserLocalPersistence)
+        .catch(error => console.warn("No se pudo ajustar la persistencia de Firebase:", error));
 
       setInterval(updateCountdown, 1000);
     }catch(error){
