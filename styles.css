@@ -221,8 +221,9 @@ footer{max-width:1050px;margin:0 auto;padding:0 18px 40px;color:#78716c;font-siz
 .account-btn{background:#171717;color:#fff;padding:8px 12px;border-radius:999px}
 .account-btn:hover{background:#292524}
 .account-dialog{
-  width:min(92vw,560px);
+  width:min(94vw,760px);
   max-height:90vh;
+  overflow:auto;
   border:0;
   border-radius:22px;
   padding:0;
@@ -356,3 +357,83 @@ body.auth-locked #appContent{display:none}
 
 /* Respetar estados ocultos controlados por JS */
 [hidden]{display:none!important}
+
+
+/* Planes dinámicos y administración v0.11.0 */
+.field textarea{
+  width:100%;
+  border:1px solid #d6d3d1;
+  background:#fff;
+  border-radius:12px;
+  padding:12px;
+  font:inherit;
+  color:#171717;
+  resize:vertical;
+  min-height:92px;
+}
+.plan-catalog-head{margin:14px 0 10px}
+.plan-catalog-head strong{display:block;font-size:15px}
+.plan-catalog-head p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+.plan-catalog{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.plan-card-title{display:block;font-size:17px;margin-bottom:8px}
+.subscription-countdown{
+  margin-top:12px;
+  padding:11px 12px;
+  border-radius:12px;
+  background:#fff;
+  border:1px solid #bbf7d0;
+}
+.subscription-countdown span{display:block;color:#166534;font-size:11px;font-weight:800;margin-bottom:4px}
+.subscription-countdown strong{font-size:18px;color:#14532d;font-variant-numeric:tabular-nums}
+.admin-plan-box{
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px;
+  background:#fff;
+  display:grid;
+  gap:13px;
+}
+.admin-plan-head,.admin-plan-list-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.admin-plan-head>div>strong,.admin-plan-list-head>strong{font-size:16px}
+.admin-plan-head .helper{margin:4px 0 0}
+.plan-active-toggle{
+  min-height:46px;
+  border:1px solid #d6d3d1;
+  border-radius:12px;
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:13px;
+  font-weight:800;
+  color:#57534e;
+  background:#fff;
+}
+.plan-active-toggle input{width:18px;height:18px;accent-color:var(--red2)}
+.admin-plans-list{display:grid;gap:9px}
+.admin-plan-row{
+  border:1px solid var(--line);
+  border-radius:13px;
+  padding:11px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  background:#fafaf9;
+}
+.admin-plan-info{min-width:0}
+.admin-plan-info strong{display:block;font-size:14px;overflow-wrap:anywhere}
+.admin-plan-info small{display:block;margin-top:3px;color:var(--muted);font-size:11px;line-height:1.4}
+.admin-plan-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.danger-action{color:#991b1b;background:#fff1f2;border-color:#fecdd3}
+@media(max-width:700px){
+  .plan-catalog{grid-template-columns:1fr}
+  .admin-plan-head,.admin-plan-list-head,.admin-plan-row{display:grid}
+  .admin-plan-actions{justify-content:stretch}
+  .admin-plan-actions .btn{flex:1}
+}
