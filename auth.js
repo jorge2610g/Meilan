@@ -2,8 +2,6 @@
   const FIREBASE_VERSION = "12.19.0";
   const cfg = window.MEILAN_CONFIG || {};
   const billing = cfg.billing || {};
-  const TRIAL_DAYS = Number(billing.trialDays || 7);
-  const PLAN_PRICE_CLP = Number(billing.planPriceClp || 3000);
   const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const ADMIN_EMAILS = (cfg.adminEmails || []).map(email => String(email).trim().toLowerCase());
   const $ = id => document.getElementById(id);
@@ -30,24 +28,34 @@
     authRoleHint: $("authRoleHint"),
     signedEmail: $("signedInEmail"),
     logoutBtn: $("logoutBtn"),
-    openAdminPanelBtn: $("openAdminPanelBtn"),
     adminSignedEmail: $("adminSignedEmail"),
-    adminToUserBtn: $("adminToUserBtn"),
     adminLogoutBtn: $("adminLogoutBtn"),
+
+    subscriptionStatus: $("subscriptionStatus"),
+    subscriptionActiveState: $("subscriptionActiveState"),
+    currentPlanName: $("currentPlanName"),
+    currentPlanEndsText: $("currentPlanEndsText"),
+    subscriptionCountdown: $("subscriptionCountdown"),
+    planCatalog: $("planCatalog"),
+    planCatalogEmpty: $("planCatalogEmpty"),
+
     mpAccessToken: $("mpAccessToken"),
     saveMpCredentialsBtn: $("saveMpCredentialsBtn"),
     mpCredentialStatus: $("mpCredentialStatus"),
-    subscriptionStatus: $("subscriptionStatus"),
-    trialOffer: $("trialOffer"),
-    trialActive: $("trialActive"),
-    trialEndsText: $("trialEndsText"),
-    startTrialBtn: $("startTrialBtn"),
-    paidPlanOffer: $("paidPlanOffer"),
-    planPriceText: $("planPriceText"),
-    buyPlanBtn: $("buyPlanBtn"),
-    paymentSetupNote: $("paymentSetupNote"),
-    activePlan: $("activePlan"),
-    planEndsText: $("planEndsText")
+
+    planEditorTitle: $("planEditorTitle"),
+    planId: $("planId"),
+    planName: $("planName"),
+    planType: $("planType"),
+    planDays: $("planDays"),
+    planPrice: $("planPrice"),
+    planSortOrder: $("planSortOrder"),
+    planActive: $("planActive"),
+    planDescription: $("planDescription"),
+    savePlanBtn: $("savePlanBtn"),
+    cancelPlanEditBtn: $("cancelPlanEditBtn"),
+    adminPlanCount: $("adminPlanCount"),
+    adminPlansList: $("adminPlansList")
   };
 
   const state = {
@@ -57,9 +65,11 @@
     functions: null,
     user: null,
     subscription: null,
+    plans: [],
+    adminPlans: [],
     isAdmin: false,
+    adminSession: false,
     loginMode: "user",
-    viewMode: "user",
     configured: false,
     busy: false,
     api: null
@@ -92,8 +102,6 @@
       getFirestore: firestoreApi.getFirestore,
       doc: firestoreApi.doc,
       getDoc: firestoreApi.getDoc,
-      setDoc: firestoreApi.setDoc,
-      serverTimestamp: firestoreApi.serverTimestamp,
       getFunctions: functionsApi.getFunctions,
       httpsCallable: functionsApi.httpsCallable
     };
@@ -118,7 +126,9 @@
       "auth/network-request-failed": "No se pudo conectar con Firebase. Revisa tu conexión.",
       "functions/unauthenticated": "Debes iniciar sesión para continuar.",
       "functions/permission-denied": "Esta cuenta no tiene permisos de administrador.",
-      "functions/failed-precondition": "La función todavía no está habilitada.",
+      "functions/failed-precondition": "Esta operación no está disponible para esta cuenta.",
+      "functions/not-found": "El plan seleccionado ya no existe.",
+      "functions/invalid-argument": "Revisa los datos ingresados.",
       "functions/internal": "No se pudo completar la operación."
     };
     return map[code] || error?.message || fallback;
@@ -131,13 +141,18 @@
       els.registerBtn,
       els.logoutBtn,
       els.adminLogoutBtn,
-      els.startTrialBtn,
-      els.buyPlanBtn,
-      els.saveMpCredentialsBtn
+      els.saveMpCredentialsBtn,
+      els.savePlanBtn,
+      els.cancelPlanEditBtn
     ].filter(Boolean).forEach(btn => btn.disabled = busy);
 
-    if(els.buyPlanBtn && !billing.mercadoPagoEnabled) els.buyPlanBtn.disabled = true;
-    if(els.saveMpCredentialsBtn && !billing.adminCredentialSaveEnabled) els.saveMpCredentialsBtn.disabled = true;
+    document.querySelectorAll("[data-plan-action]").forEach(btn => {
+      btn.disabled = busy || btn.dataset.permanentDisabled === "1";
+    });
+
+    if(els.saveMpCredentialsBtn && !billing.adminCredentialSaveEnabled) {
+      els.saveMpCredentialsBtn.disabled = true;
+    }
   }
 
   function openModal(){
@@ -156,6 +171,7 @@
   }
 
   function setLoginMode(mode){
+    if(state.user) return;
     state.loginMode = mode === "admin" ? "admin" : "user";
     els.userRoleBtn?.classList.toggle("active", state.loginMode === "user");
     els.adminRoleBtn?.classList.toggle("active", state.loginMode === "admin");
@@ -163,8 +179,8 @@
     if(els.registerBtn) els.registerBtn.hidden = state.loginMode === "admin";
     if(els.authRoleHint){
       els.authRoleHint.textContent = state.loginMode === "admin"
-        ? "Solo cuentas marcadas como administradoras pueden entrar aquí."
-        : "Acceso normal para usuarios de Meilan.";
+        ? "Acceso exclusivo para cuentas administradoras autorizadas."
+        : "Acceso normal para usuarios de Meilan. Este ingreso nunca abre el panel administrador.";
     }
     if(els.loginBtn){
       els.loginBtn.textContent = state.loginMode === "admin"
@@ -199,7 +215,7 @@
   }
 
   function addDays(date, days){
-    return new Date(date.getTime() + days * 86400000);
+    return new Date(date.getTime() + Number(days || 0) * 86400000);
   }
 
   function formatDate(date){
@@ -212,8 +228,11 @@
   }
 
   function trialEndsAt(){
+    const explicit = toDate(state.subscription?.trial_end);
+    if(explicit) return explicit;
     const started = toDate(state.subscription?.trial_started_at);
-    return started ? addDays(started, TRIAL_DAYS) : null;
+    const days = Number(state.subscription?.trial_days_snapshot || billing.trialDays || 7);
+    return started ? addDays(started, days) : null;
   }
 
   function activePlanEndsAt(){
@@ -224,7 +243,7 @@
     const s = state.subscription;
     const now = Date.now();
 
-    if(!s) return {active:false, kind:"none"};
+    if(!s) return {active:false, kind:"none", end:null};
 
     if(s.status === "trial"){
       const end = trialEndsAt();
@@ -238,15 +257,15 @@
       return {active:false, kind:"paid_expired", end};
     }
 
-    return {active:false, kind:s.status || "none"};
+    return {active:false, kind:s.status || "none", end:null};
   }
 
   function subscriptionLabel(){
     const e = entitlement();
-    if(e.kind === "none") return {text:"Prueba disponible", cls:"soon"};
-    if(e.kind === "trial") return {text:"Prueba gratis activa", cls:"ok"};
+    if(e.kind === "none") return {text:"Elige un plan", cls:"soon"};
+    if(e.kind === "trial") return {text:"Prueba activa", cls:"ok"};
     if(e.kind === "trial_expired") return {text:"Prueba finalizada", cls:"neutral"};
-    if(e.kind === "paid") return {text:"Plan 30 días activo", cls:"ok"};
+    if(e.kind === "paid") return {text:"Plan activo", cls:"ok"};
     if(e.kind === "paid_expired") return {text:"Plan vencido", cls:"neutral"};
 
     const labels = {
@@ -256,6 +275,26 @@
       past_due:"Pago pendiente"
     };
     return {text:labels[e.kind] || "Plan disponible", cls:e.kind === "pending" ? "soon" : "neutral"};
+  }
+
+  function formatRemaining(ms){
+    if(!Number.isFinite(ms) || ms <= 0) return "0d 00h 00m 00s";
+    let total = Math.floor(ms / 1000);
+    const days = Math.floor(total / 86400);
+    total -= days * 86400;
+    const hours = Math.floor(total / 3600);
+    total -= hours * 3600;
+    const minutes = Math.floor(total / 60);
+    const seconds = total - minutes * 60;
+    return `${days}d ${String(hours).padStart(2,"0")}h ${String(minutes).padStart(2,"0")}m ${String(seconds).padStart(2,"0")}s`;
+  }
+
+  function updateCountdown(){
+    if(!els.subscriptionCountdown) return;
+    const e = entitlement();
+    els.subscriptionCountdown.textContent = e.active && e.end
+      ? formatRemaining(e.end.getTime() - Date.now())
+      : "—";
   }
 
   function verifiedEnough(){
@@ -277,20 +316,12 @@
       locked = true;
       title = "Verifica tu correo";
       text = "Revisa tu bandeja de entrada y confirma tu correo para continuar.";
-    }else if(state.configured && cfg.requireActiveSubscription === true && state.user && !state.isAdmin){
+    }else if(state.configured && cfg.requireActiveSubscription === true && state.user && !state.adminSession){
       const e = entitlement();
       if(!e.active){
         locked = true;
-        if(e.kind === "none"){
-          title = "Activa tu prueba gratis";
-          text = "Tienes 7 días gratis para probar Meilan.";
-        }else if(e.kind === "trial_expired"){
-          title = "Tu prueba gratis terminó";
-          text = "Continúa con el plan de 30 días por $3.000 CLP.";
-        }else{
-          title = "Renueva tu acceso";
-          text = "Activa el plan de 30 días por $3.000 CLP para seguir usando Meilan.";
-        }
+        title = "Activa o renueva tu acceso";
+        text = "Elige una prueba disponible o un plan pagado para continuar.";
       }
     }
 
@@ -302,48 +333,156 @@
     }
   }
 
-  function renderPlan(){
-    if(!state.user) return;
-
+  function renderCurrentAccess(){
     const e = entitlement();
-    const noSubscription = e.kind === "none";
-    const trialActive = e.kind === "trial";
-    const paidActive = e.kind === "paid";
-    const showPaidOffer = !noSubscription && !trialActive && !paidActive;
+    const show = Boolean(e.active && e.end);
 
-    if(els.trialOffer) els.trialOffer.hidden = !noSubscription;
-    if(els.trialActive) els.trialActive.hidden = !trialActive;
-    if(els.paidPlanOffer) els.paidPlanOffer.hidden = !showPaidOffer;
-    if(els.activePlan) els.activePlan.hidden = !paidActive;
+    if(els.subscriptionActiveState) els.subscriptionActiveState.hidden = !show;
+    if(show){
+      const planName = state.subscription?.plan_name
+        || (e.kind === "trial" ? "Prueba gratis" : "Plan Meilan");
+      if(els.currentPlanName) els.currentPlanName.textContent = planName;
+      if(els.currentPlanEndsText){
+        els.currentPlanEndsText.textContent = "Tu acceso termina el " + formatDate(e.end) + ".";
+      }
+    }
+    updateCountdown();
+  }
 
-    if(els.trialEndsText && trialActive){
-      els.trialEndsText.textContent = "Tu prueba termina el " + formatDate(e.end) + ".";
+  function priceText(plan){
+    if(plan.type === "trial" || Number(plan.priceClp) === 0) return "$0";
+    return "$" + Number(plan.priceClp || 0).toLocaleString("es-CL") + " CLP";
+  }
+
+  function renderPlanCatalog(){
+    if(!els.planCatalog) return;
+    els.planCatalog.innerHTML = "";
+
+    const plans = state.plans.filter(plan => plan.active !== false);
+    if(els.planCatalogEmpty) els.planCatalogEmpty.hidden = plans.length > 0;
+
+    const hasAnySubscription = Boolean(state.subscription);
+    const e = entitlement();
+
+    plans.forEach(plan => {
+      const card = document.createElement("article");
+      card.className = "plan-offer " + (plan.type === "trial" ? "trial-offer" : "paid-offer");
+
+      const kicker = document.createElement("span");
+      kicker.className = "plan-kicker";
+      kicker.textContent = plan.type === "trial" ? "PRUEBA GRATIS" : "PLAN";
+
+      const title = document.createElement("strong");
+      title.className = "plan-card-title";
+      title.textContent = plan.name;
+
+      const priceRow = document.createElement("div");
+      priceRow.className = "plan-price-row";
+
+      const price = document.createElement("strong");
+      price.textContent = priceText(plan);
+
+      const duration = document.createElement("span");
+      duration.textContent = Number(plan.days) + (Number(plan.days) === 1 ? " día" : " días");
+
+      priceRow.append(price, duration);
+
+      const description = document.createElement("p");
+      description.textContent = plan.description || (plan.type === "trial"
+        ? "Prueba gratuita de Meilan."
+        : "Acceso a Meilan por " + plan.days + " días.");
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn primary wide";
+      button.dataset.planAction = plan.type;
+      button.dataset.planId = plan.id;
+
+      if(plan.type === "trial"){
+        const unavailable = hasAnySubscription;
+        button.textContent = unavailable ? "Prueba ya utilizada o no disponible" : "Comenzar prueba gratis";
+        button.dataset.permanentDisabled = unavailable ? "1" : "0";
+        button.disabled = state.busy || unavailable;
+        button.addEventListener("click", () => startTrial(plan.id));
+      }else{
+        button.textContent = e.active
+          ? "Agregar " + plan.days + " días"
+          : "Pagar con Mercado Pago";
+        button.dataset.permanentDisabled = billing.mercadoPagoEnabled ? "0" : "1";
+        button.disabled = state.busy || !billing.mercadoPagoEnabled;
+        button.addEventListener("click", () => buyPlan(plan.id));
+      }
+
+      const note = document.createElement("small");
+      note.textContent = plan.type === "trial"
+        ? "Una prueba gratis por cuenta."
+        : (e.active
+          ? "La compra se suma al final de tu acceso actual."
+          : "Pago único. No se renueva automáticamente.");
+
+      card.append(kicker, title, priceRow, description, button, note);
+      els.planCatalog.appendChild(card);
+    });
+  }
+
+  function renderAdminPlans(){
+    if(!els.adminPlansList) return;
+    els.adminPlansList.innerHTML = "";
+    if(els.adminPlanCount) els.adminPlanCount.textContent = String(state.adminPlans.length);
+
+    if(!state.adminPlans.length){
+      els.adminPlansList.innerHTML = '<div class="history-empty">No hay planes configurados.</div>';
+      return;
     }
 
-    if(els.planEndsText && paidActive){
-      els.planEndsText.textContent = e.end
-        ? "Tu acceso está activo hasta el " + formatDate(e.end) + "."
-        : "Tu plan está activo.";
-    }
+    state.adminPlans.forEach(plan => {
+      const row = document.createElement("div");
+      row.className = "admin-plan-row";
 
-    if(els.planPriceText){
-      els.planPriceText.textContent = "$" + PLAN_PRICE_CLP.toLocaleString("es-CL") + " CLP";
-    }
+      const info = document.createElement("div");
+      info.className = "admin-plan-info";
 
-    if(els.paymentSetupNote){
-      els.paymentSetupNote.hidden = Boolean(billing.mercadoPagoEnabled);
-    }
+      const name = document.createElement("strong");
+      name.textContent = plan.name;
 
-    if(els.buyPlanBtn){
-      els.buyPlanBtn.disabled = state.busy || !billing.mercadoPagoEnabled;
-    }
+      const meta = document.createElement("small");
+      meta.textContent = [
+        plan.type === "trial" ? "Prueba" : "Pagado",
+        plan.days + " días",
+        priceText(plan),
+        plan.active ? "Visible" : "Oculto"
+      ].join(" · ");
+
+      info.append(name, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "admin-plan-actions";
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "btn secondary small";
+      edit.textContent = "Editar";
+      edit.dataset.planAction = "admin-edit";
+      edit.addEventListener("click", () => editPlan(plan));
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "btn ghost small danger-action";
+      del.textContent = "Eliminar";
+      del.dataset.planAction = "admin-delete";
+      del.addEventListener("click", () => deletePlan(plan));
+
+      actions.append(edit, del);
+      row.append(info, actions);
+      els.adminPlansList.appendChild(row);
+    });
   }
 
   function render(){
     if(els.setupNotice) els.setupNotice.hidden = state.configured;
     if(els.authForms) els.authForms.hidden = !state.configured || Boolean(state.user);
 
-    const showAdmin = Boolean(state.user && state.isAdmin && state.viewMode === "admin");
+    const showAdmin = Boolean(state.user && state.isAdmin && state.adminSession);
     if(els.adminPanel) els.adminPanel.hidden = !showAdmin;
     if(els.accountPanel) els.accountPanel.hidden = !state.user || showAdmin;
 
@@ -355,8 +494,6 @@
 
     if(state.user && els.signedEmail) els.signedEmail.textContent = state.user.email || "Cuenta Meilan";
     if(state.user && els.adminSignedEmail) els.adminSignedEmail.textContent = state.user.email || "Administrador";
-
-    if(els.openAdminPanelBtn) els.openAdminPanelBtn.hidden = !state.isAdmin;
 
     const badge = subscriptionLabel();
     if(els.subscriptionStatus){
@@ -371,7 +508,13 @@
       els.mpCredentialStatus.className = "status-badge " + (billing.adminCredentialSaveEnabled ? "ok" : "soon");
     }
 
-    renderPlan();
+    if(!showAdmin){
+      renderCurrentAccess();
+      renderPlanCatalog();
+    }else{
+      renderAdminPlans();
+    }
+
     setBusy(state.busy);
     applyGate();
   }
@@ -388,7 +531,34 @@
       console.warn("No se pudo leer el acceso de Meilan:", error);
       setMessage("La cuenta inició sesión, pero no se pudo leer el estado del plan.", "warning");
     }
+  }
 
+  async function loadPlans(){
+    state.plans = [];
+    if(!state.functions || !state.user || !state.api) return;
+
+    try{
+      const listPlans = state.api.httpsCallable(state.functions, "listMeilanPlans");
+      const result = await listPlans({});
+      state.plans = Array.isArray(result?.data?.plans) ? result.data.plans : [];
+    }catch(error){
+      console.error("No se pudieron cargar los planes:", error);
+      setMessage(friendlyError(error, "No se pudieron cargar los planes."), "error");
+    }
+  }
+
+  async function loadAdminPlans(){
+    state.adminPlans = [];
+    if(!state.functions || !state.user || !state.api || !state.adminSession) return;
+
+    try{
+      const listPlans = state.api.httpsCallable(state.functions, "listMeilanPlansAdmin");
+      const result = await listPlans({});
+      state.adminPlans = Array.isArray(result?.data?.plans) ? result.data.plans : [];
+    }catch(error){
+      console.error("No se pudieron cargar los planes de administración:", error);
+      setMessage(friendlyError(error, "No se pudieron cargar los planes."), "error");
+    }
   }
 
   async function handleUser(user){
@@ -397,32 +567,39 @@
 
     if(!state.user){
       state.subscription = null;
-      state.viewMode = "user";
+      state.plans = [];
+      state.adminPlans = [];
+      state.adminSession = false;
       render();
       return;
     }
 
     state.isAdmin = await checkAdminRole(state.user);
 
-    if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
-      state.subscription = null;
+    if(state.loginMode === "admin"){
+      if(!state.isAdmin){
+        await state.api.signOut(state.auth);
+        state.user = null;
+        state.adminSession = false;
+        render();
+        setMessage("Esta cuenta no tiene acceso de administrador.", "error");
+        openModal();
+        return;
+      }
+
+      state.adminSession = true;
+      await loadAdminPlans();
+      setMessage("Acceso administrador correcto.", "success");
     }else{
-      await loadSubscription();
-    }
+      // Incluso una cuenta administradora entra como usuario si eligió Acceso usuario.
+      state.adminSession = false;
 
-    if(state.loginMode === "admin" && !state.isAdmin){
-      await state.api.signOut(state.auth);
-      state.user = null;
-      state.subscription = null;
-      state.viewMode = "user";
-      render();
-      setMessage("Esta cuenta no tiene acceso de administrador.", "error");
-      openModal();
-      return;
-    }
-
-    if(state.loginMode === "admin" && state.isAdmin){
-      state.viewMode = "admin";
+      if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
+        state.subscription = null;
+        state.plans = [];
+      }else{
+        await Promise.all([loadSubscription(), loadPlans()]);
+      }
     }
 
     render();
@@ -451,27 +628,11 @@
         return;
       }
 
-      if(state.loginMode === "admin"){
-        const admin = await checkAdminRole(credential.user);
-        if(!admin){
-          await state.api.signOut(state.auth);
-          setMessage("Esta cuenta no tiene acceso de administrador.", "error");
-          return;
-        }
-        state.isAdmin = true;
-        state.viewMode = "admin";
-        setMessage("Acceso administrador correcto.", "success");
-      }else{
-        state.viewMode = "user";
-        setMessage("Sesión iniciada correctamente.", "success");
-      }
-
-      await handleUser(credential.user);
+      // onAuthStateChanged termina de validar el rol y renderiza la vista correcta.
     }catch(error){
       setMessage(friendlyError(error, "No se pudo iniciar sesión."), "error");
     }finally{
       setBusy(false);
-      render();
     }
   }
 
@@ -504,15 +665,12 @@
         await state.api.signOut(state.auth);
         setMessage("Cuenta creada. Revisa tu correo para verificarla antes de ingresar.", "success");
       }else{
-        state.viewMode = "user";
-        setMessage("Cuenta creada. Ya puedes activar tu prueba gratis de 7 días.", "success");
-        await handleUser(credential.user);
+        setMessage("Cuenta creada. Ya puedes elegir una prueba o un plan.", "success");
       }
     }catch(error){
       setMessage(friendlyError(error, "No se pudo crear la cuenta."), "error");
     }finally{
       setBusy(false);
-      render();
     }
   }
 
@@ -523,8 +681,10 @@
       await state.api.signOut(state.auth);
       state.user = null;
       state.subscription = null;
+      state.plans = [];
+      state.adminPlans = [];
       state.isAdmin = false;
-      state.viewMode = "user";
+      state.adminSession = false;
       setLoginMode("user");
       render();
       setMessage("Sesión cerrada.", "success");
@@ -535,47 +695,32 @@
     }
   }
 
-  async function startTrial(){
-    if(!state.db || !state.user || state.busy || !state.api) return;
+  async function startTrial(planId){
+    if(!state.user || !state.functions || state.busy || !state.api) return;
 
     setBusy(true);
-    setMessage("Activando tus 7 días gratis…");
+    setMessage("Activando tu prueba gratis…");
 
     try{
-      const ref = state.api.doc(state.db, "meilan_subscriptions", state.user.uid);
-      const existing = await state.api.getDoc(ref);
-
-      if(existing.exists()){
-        setMessage("Esta cuenta ya utilizó o tiene configurado un período de acceso.", "warning");
-        return;
-      }
-
-      await state.api.setDoc(ref, {
-        user_id: state.user.uid,
-        plan_code: "trial_7d",
-        status: "trial",
-        trial_started_at: state.api.serverTimestamp(),
-        created_at: state.api.serverTimestamp(),
-        updated_at: state.api.serverTimestamp()
-      });
-
+      const start = state.api.httpsCallable(state.functions, "startMeilanTrial");
+      await start({planId});
       await loadSubscription();
       render();
-      setMessage("Prueba gratis activada. Tienes 7 días de acceso.", "success");
+      setMessage("Prueba gratis activada correctamente.", "success");
     }catch(error){
       console.error("No se pudo activar la prueba:", error);
-      setMessage("No se pudo activar la prueba gratis. Revisa que las reglas nuevas de Firestore estén publicadas.", "error");
+      setMessage(friendlyError(error, "No se pudo activar la prueba gratis."), "error");
     }finally{
       setBusy(false);
-      renderPlan();
+      render();
     }
   }
 
-  async function buyPlan(){
+  async function buyPlan(planId){
     if(!state.user || !state.functions || state.busy || !state.api) return;
 
     if(!billing.mercadoPagoEnabled){
-      setMessage("Mercado Pago está preparado, pero falta desplegar el backend de pagos.", "warning");
+      setMessage("Mercado Pago todavía no está habilitado.", "warning");
       return;
     }
 
@@ -584,29 +729,133 @@
 
     try{
       const createCheckout = state.api.httpsCallable(state.functions, "createMeilanCheckout");
-      const result = await createCheckout({});
+      const result = await createCheckout({planId});
       const checkoutUrl = result?.data?.checkoutUrl;
 
       if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de pago.");
-
       window.location.assign(checkoutUrl);
     }catch(error){
       console.error("No se pudo abrir Mercado Pago:", error);
       setMessage(friendlyError(error, "No se pudo iniciar el pago con Mercado Pago."), "error");
     }finally{
       setBusy(false);
-      renderPlan();
+      renderPlanCatalog();
+    }
+  }
+
+  function resetPlanEditor(){
+    if(els.planId) els.planId.value = "";
+    if(els.planName) els.planName.value = "";
+    if(els.planType) els.planType.value = "paid";
+    if(els.planDays) els.planDays.value = "30";
+    if(els.planPrice) {
+      els.planPrice.value = "3000";
+      els.planPrice.disabled = false;
+    }
+    if(els.planSortOrder) els.planSortOrder.value = "20";
+    if(els.planActive) els.planActive.checked = true;
+    if(els.planDescription) els.planDescription.value = "";
+    if(els.planEditorTitle) els.planEditorTitle.textContent = "Crear plan";
+    if(els.cancelPlanEditBtn) els.cancelPlanEditBtn.hidden = true;
+  }
+
+  function syncPlanType(){
+    const trial = els.planType?.value === "trial";
+    if(els.planPrice){
+      els.planPrice.disabled = trial;
+      if(trial) els.planPrice.value = "0";
+      else if(Number(els.planPrice.value) < 1) els.planPrice.value = "3000";
+    }
+  }
+
+  function editPlan(plan){
+    if(!state.adminSession) return;
+    if(els.planId) els.planId.value = plan.id || "";
+    if(els.planName) els.planName.value = plan.name || "";
+    if(els.planType) els.planType.value = plan.type === "trial" ? "trial" : "paid";
+    if(els.planDays) els.planDays.value = String(plan.days || 1);
+    if(els.planPrice) els.planPrice.value = String(plan.priceClp || 0);
+    if(els.planSortOrder) els.planSortOrder.value = String(plan.sortOrder || 0);
+    if(els.planActive) els.planActive.checked = plan.active !== false;
+    if(els.planDescription) els.planDescription.value = plan.description || "";
+    if(els.planEditorTitle) els.planEditorTitle.textContent = "Editar plan";
+    if(els.cancelPlanEditBtn) els.cancelPlanEditBtn.hidden = false;
+    syncPlanType();
+  }
+
+  async function savePlan(){
+    if(!state.adminSession || !state.isAdmin || !state.functions || state.busy || !state.api) return;
+
+    const payload = {
+      id: els.planId?.value.trim() || undefined,
+      name: els.planName?.value.trim() || "",
+      type: els.planType?.value === "trial" ? "trial" : "paid",
+      days: Number(els.planDays?.value || 0),
+      priceClp: Number(els.planPrice?.value || 0),
+      sortOrder: Number(els.planSortOrder?.value || 0),
+      active: Boolean(els.planActive?.checked),
+      description: els.planDescription?.value.trim() || ""
+    };
+
+    if(!payload.name || !Number.isInteger(payload.days) || payload.days < 1){
+      setMessage("Completa el nombre y una duración válida.", "error");
+      return;
+    }
+    if(payload.type === "paid" && (!Number.isInteger(payload.priceClp) || payload.priceClp < 1)){
+      setMessage("El plan pagado necesita un precio válido.", "error");
+      return;
+    }
+
+    setBusy(true);
+    setMessage(payload.id ? "Actualizando plan…" : "Creando plan…");
+
+    try{
+      const save = state.api.httpsCallable(state.functions, "saveMeilanPlan");
+      await save(payload);
+      resetPlanEditor();
+      await loadAdminPlans();
+      render();
+      setMessage("Plan guardado correctamente.", "success");
+    }catch(error){
+      console.error("No se pudo guardar el plan:", error);
+      setMessage(friendlyError(error, "No se pudo guardar el plan."), "error");
+    }finally{
+      setBusy(false);
+      render();
+    }
+  }
+
+  async function deletePlan(plan){
+    if(!state.adminSession || !state.isAdmin || !state.functions || state.busy || !state.api) return;
+    if(!window.confirm("¿Eliminar el plan “" + plan.name + "”?")) return;
+
+    setBusy(true);
+    setMessage("Eliminando plan…");
+
+    try{
+      const del = state.api.httpsCallable(state.functions, "deleteMeilanPlan");
+      await del({planId: plan.id});
+      if(els.planId?.value === plan.id) resetPlanEditor();
+      await loadAdminPlans();
+      render();
+      setMessage("Plan eliminado.", "success");
+    }catch(error){
+      console.error("No se pudo eliminar el plan:", error);
+      setMessage(friendlyError(error, "No se pudo eliminar el plan."), "error");
+    }finally{
+      setBusy(false);
+      render();
     }
   }
 
   async function saveMercadoPagoCredentials(){
-    if(!state.isAdmin || !state.functions || state.busy || !state.api){
+    if(!state.adminSession || !state.isAdmin || !state.functions || state.busy || !state.api){
       setMessage("Necesitas acceso administrador.", "error");
       return;
     }
 
     if(!billing.adminCredentialSaveEnabled){
-      setMessage("El panel ya usa solo Access Token, pero falta desplegar la función segura que lo guardará.", "warning");
+      setMessage("El backend seguro todavía no está habilitado.", "warning");
       return;
     }
 
@@ -643,13 +892,17 @@
     openModal();
 
     if(payment === "success"){
-      setMessage("Pago recibido. Estamos confirmándolo con Mercado Pago; tu plan se activará al aprobarse.", "success");
-      setTimeout(async () => {
-        await loadSubscription();
-        render();
-      }, 2500);
+      setMessage("Pago recibido. Estamos confirmándolo con Mercado Pago; el tiempo comprado se sumará a tu acceso.", "success");
+
+      [1800, 4500, 9000].forEach(delay => {
+        setTimeout(async () => {
+          if(!state.user || state.adminSession) return;
+          await loadSubscription();
+          render();
+        }, delay);
+      });
     }else if(payment === "pending"){
-      setMessage("El pago quedó pendiente. El plan se activará cuando Mercado Pago lo apruebe.", "warning");
+      setMessage("El pago quedó pendiente. El acceso se actualizará cuando Mercado Pago lo apruebe.", "warning");
     }else if(payment === "failure"){
       setMessage("El pago no se completó. Puedes intentarlo nuevamente.", "error");
     }
@@ -669,24 +922,17 @@
     els.adminLogoutBtn?.addEventListener("click", logout);
     els.userRoleBtn?.addEventListener("click", () => setLoginMode("user"));
     els.adminRoleBtn?.addEventListener("click", () => setLoginMode("admin"));
-    els.openAdminPanelBtn?.addEventListener("click", () => {
-      if(!state.isAdmin) return;
-      state.viewMode = "admin";
-      render();
-    });
-    els.adminToUserBtn?.addEventListener("click", () => {
-      state.viewMode = "user";
-      render();
-    });
-    els.startTrialBtn?.addEventListener("click", startTrial);
-    els.buyPlanBtn?.addEventListener("click", buyPlan);
     els.saveMpCredentialsBtn?.addEventListener("click", saveMercadoPagoCredentials);
+    els.savePlanBtn?.addEventListener("click", savePlan);
+    els.cancelPlanEditBtn?.addEventListener("click", resetPlanEditor);
+    els.planType?.addEventListener("change", syncPlanType);
 
     els.modal?.addEventListener("click", event => {
       if(event.target === els.modal) closeModal();
     });
 
     setLoginMode("user");
+    resetPlanEditor();
     state.configured = credentialsReady();
     render();
 
@@ -713,6 +959,8 @@
           setMessage("No se pudo actualizar el estado de la cuenta.", "error");
         });
       });
+
+      setInterval(updateCountdown, 1000);
     }catch(error){
       console.error("No se pudo iniciar Firebase:", error);
       setMessage("No se pudo iniciar Firebase. Comprueba la configuración y la conexión.", "error");
