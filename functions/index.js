@@ -165,7 +165,20 @@ async function mercadoPagoRequest(path, options = {}) {
 
   if (!response.ok) {
     console.error("Mercado Pago API error", response.status, data);
-    throw new HttpsError("internal", "Mercado Pago rechazó la operación.");
+
+    const rawDetail =
+      data?.message ||
+      data?.error ||
+      data?.cause?.[0]?.description ||
+      data?.cause?.[0]?.code ||
+      "";
+
+    const safeDetail = cleanText(String(rawDetail || ""), 220);
+    const message = safeDetail
+      ? `Mercado Pago rechazó la operación: ${safeDetail}`
+      : `Mercado Pago rechazó la operación (HTTP ${response.status}).`;
+
+    throw new HttpsError("failed-precondition", message);
   }
 
   return data;
