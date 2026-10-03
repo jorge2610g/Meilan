@@ -1,0 +1,32 @@
+name: Deploy Firebase Backend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: npm install --omit=dev
+
+      - name: Deploy Functions and Firestore rules
+        run: npx firebase-tools@latest deploy --only functions,firestore:rules --project meilan-95042 --non-interactive
