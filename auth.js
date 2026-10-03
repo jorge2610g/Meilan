@@ -4,6 +4,7 @@
   const billing = cfg.billing || {};
   const FUNCTIONS_REGION = billing.functionsRegion || "southamerica-west1";
   const ADMIN_EMAILS = (cfg.adminEmails || []).map(email => String(email).trim().toLowerCase());
+  const LOGIN_MODE_KEY = "meilan_login_mode_v1";
   const $ = id => document.getElementById(id);
 
   const els = {
@@ -174,9 +175,35 @@
     else els.modal.hidden = true;
   }
 
-  function setLoginMode(mode){
+  function savedLoginMode(){
+    try{
+      return localStorage.getItem(LOGIN_MODE_KEY) === "admin" ? "admin" : "user";
+    }catch{
+      return "user";
+    }
+  }
+
+  function rememberLoginMode(mode){
+    try{
+      localStorage.setItem(LOGIN_MODE_KEY, mode === "admin" ? "admin" : "user");
+    }catch{
+      // El modo guardado solo mejora la UX; no concede permisos.
+    }
+  }
+
+  function clearSavedLoginMode(){
+    try{
+      localStorage.removeItem(LOGIN_MODE_KEY);
+    }catch{
+      // Nada que limpiar.
+    }
+  }
+
+  function setLoginMode(mode, persist = true){
     if(state.user) return;
     state.loginMode = mode === "admin" ? "admin" : "user";
+    if(persist) rememberLoginMode(state.loginMode);
+
     els.userRoleBtn?.classList.toggle("active", state.loginMode === "user");
     els.adminRoleBtn?.classList.toggle("active", state.loginMode === "admin");
 
@@ -612,9 +639,12 @@
       return;
     }
 
-    state.isAdmin = await checkAdminRole(state.user);
-
     if(state.loginMode === "admin"){
+      // Solo consultamos el rol cuando realmente se pidió entrar a Administración.
+      // La cuenta principal configurada por correo se resuelve localmente, sin una
+      // lectura extra a Firestore. Las Cloud Functions vuelven a validar permisos.
+      state.isAdmin = await checkAdminRole(state.user);
+
       if(!state.isAdmin){
         await state.api.signOut(state.auth);
         state.user = null;
@@ -626,22 +656,40 @@
       }
 
       state.adminSession = true;
+      render();
       await loadAdminPlans();
+      render();
       setMessage("Acceso administrador correcto.", "success");
-    }else{
-      // Incluso una cuenta administradora entra como usuario si eligió Acceso usuario.
-      state.adminSession = false;
-
-      if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
-        state.subscription = null;
-        state.plans = [];
-      }else{
-        await syncSubscriptionWithBackend();
-        await Promise.all([loadSubscription(), loadPlans()]);
-      }
+      return;
     }
 
+    // En acceso usuario no hacemos ninguna lectura para averiguar si también es admin.
+    // Eso elimina una ida y vuelta innecesaria a Firestore en cada entrada/recarga.
+    state.adminSession = false;
+    state.isAdmin = false;
     render();
+
+    if(state.user && cfg.requireVerifiedEmail && !state.user.emailVerified){
+      state.subscription = null;
+      state.plans = [];
+      render();
+      return;
+    }
+
+    // Mostramos la cuenta apenas Firebase restaura la sesión y cargamos lo esencial
+    // en paralelo. La sincronización con Mercado Pago queda en segundo plano.
+    await Promise.all([loadSubscription(), loadPlans()]);
+    render();
+
+    syncSubscriptionWithBackend()
+      .then(async synced => {
+        if(!state.user || state.adminSession || !synced || synced.status === "none") return;
+        await loadSubscription();
+        render();
+      })
+      .catch(error => {
+        console.warn("No se pudo refrescar la suscripción en segundo plano:", error);
+      });
   }
 
   async function login(){
@@ -659,6 +707,7 @@
 
     try{
       const credential = await state.api.signInWithEmailAndPassword(state.auth, email, password);
+      rememberLoginMode(state.loginMode);
 
       if(cfg.requireVerifiedEmail && !credential.user.emailVerified){
         await state.api.sendEmailVerification(credential.user);
@@ -724,7 +773,8 @@
       state.adminPlans = [];
       state.isAdmin = false;
       state.adminSession = false;
-      setLoginMode("user");
+      clearSavedLoginMode();
+      setLoginMode("user", false);
       render();
       setMessage("Sesión cerrada.", "success");
     }catch(error){
@@ -1057,7 +1107,7 @@
       });
     });
 
-    setLoginMode("user");
+    setLoginMode(savedLoginMode(), false);
     resetPlanEditor();
     state.configured = credentialsReady();
     render();
