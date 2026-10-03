@@ -144,6 +144,33 @@ async function mercadoPagoClient() {
   });
 }
 
+async function mercadoPagoRequest(path, options = {}) {
+  const accessToken = await readAccessToken();
+  const response = await fetch("https://api.mercadopago.com" + path, {
+    method: options.method || "GET",
+    headers: {
+      Authorization: "Bearer " + accessToken,
+      "Content-Type": "application/json"
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    console.error("Mercado Pago API error", response.status, data);
+    throw new HttpsError("internal", "Mercado Pago rechazó la operación.");
+  }
+
+  return data;
+}
+
 function webhookUrl() {
   return `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/mercadoPagoWebhook`;
 }
@@ -293,92 +320,254 @@ exports.createMeilanCheckout = onCall(
     await ensureDefaultPlans();
 
     const uid = request.auth.uid;
-    const email = request.auth.token?.email || undefined;
+    const email = String(request.auth.token?.email || "").trim();
     const planId = cleanText(request.data?.planId, 100);
-    const planSnap = await db.collection("meilan_plans").doc(planId).get();
 
+    if (!email) {
+      throw new HttpsError("failed-precondition", "Tu cuenta necesita un correo para crear la suscripción.");
+    }
+
+    const planSnap = await db.collection("meilan_plans").doc(planId).get();
     if (!planSnap.exists) {
       throw new HttpsError("not-found", "Ese plan ya no existe.");
     }
 
     const plan = serializePlan(planSnap);
     if (!plan.active || plan.type !== "paid") {
-      throw new HttpsError("failed-precondition", "Ese plan no está disponible para compra.");
+      throw new HttpsError("failed-precondition", "Ese plan no está disponible para suscripción.");
     }
 
-    const checkoutRef = db.collection("meilan_checkouts").doc();
-    const externalReference = `meilan:${checkoutRef.id}`;
+    const linkRef = db.collection("meilan_subscription_links").doc(uid);
+    const existingLink = await linkRef.get();
 
-    await checkoutRef.set({
-      checkout_id: checkoutRef.id,
+    if (existingLink.exists && existingLink.data()?.preapproval_id) {
+      const existing = existingLink.data();
+      try {
+        const remote = await mercadoPagoRequest("/preapproval/" + encodeURIComponent(existing.preapproval_id));
+        if (remote?.status === "authorized") {
+          throw new HttpsError("failed-precondition", "Ya tienes una suscripción mensual activa.");
+        }
+        if (remote?.status === "pending" && existing.init_point) {
+          return {
+            checkoutUrl: existing.init_point,
+            subscriptionId: existing.preapproval_id,
+            reused: true
+          };
+        }
+      } catch (error) {
+        if (error instanceof HttpsError && error.code === "failed-precondition") throw error;
+        console.warn("No se pudo reutilizar la suscripción anterior:", error?.message || error);
+      }
+    }
+
+    const requestRef = db.collection("meilan_subscription_requests").doc();
+    const externalReference = `meilan-sub:${requestRef.id}`;
+
+    await requestRef.set({
+      request_id: requestRef.id,
       user_id: uid,
       plan_id: plan.id,
       plan_name: plan.name,
-      plan_days: plan.days,
       amount: plan.priceClp,
       currency: "CLP",
-      status: "created",
+      frequency: 1,
+      frequency_type: "months",
+      status: "creating",
       external_reference: externalReference,
       created_at: FieldValue.serverTimestamp()
     });
 
     try {
-      const preference = new Preference(await mercadoPagoClient());
+      const result = await mercadoPagoRequest("/preapproval", {
+        method: "POST",
+        body: {
+          reason: `Meilan · ${plan.name}`,
+          external_reference: externalReference,
+          payer_email: email,
+          auto_recurring: {
+            frequency: 1,
+            frequency_type: "months",
+            transaction_amount: plan.priceClp,
+            currency_id: "CLP"
+          },
+          back_url: SITE_URL + "?subscription=return",
+          status: "pending"
+        }
+      });
 
-      const body = {
-        items: [
-          {
-            id: plan.id,
-            title: `Meilan · ${plan.name}`,
-            description: plan.description || `${plan.days} días de acceso a Meilan`,
-            currency_id: "CLP",
-            quantity: 1,
-            unit_price: plan.priceClp
-          }
-        ],
-        external_reference: externalReference,
-        metadata: {
-          firebase_uid: uid,
-          plan_id: plan.id,
-          plan_days: plan.days
-        },
-        back_urls: {
-          success: SITE_URL + "?payment=success",
-          pending: SITE_URL + "?payment=pending",
-          failure: SITE_URL + "?payment=failure"
-        },
-        auto_return: "approved",
-        notification_url: webhookUrl(),
-        statement_descriptor: "MEILAN"
-      };
-
-      if (email) body.payer = { email };
-
-      const result = await preference.create({ body });
-
-      if (!result?.init_point) {
-        throw new Error("Mercado Pago no devolvió init_point.");
+      if (!result?.id || !result?.init_point) {
+        throw new Error("Mercado Pago no devolvió una suscripción utilizable.");
       }
 
-      await checkoutRef.set({
-        preference_id: result.id || null,
-        updated_at: FieldValue.serverTimestamp()
-      }, { merge: true });
+      await Promise.all([
+        requestRef.set({
+          status: result.status || "pending",
+          preapproval_id: result.id,
+          init_point: result.init_point,
+          updated_at: FieldValue.serverTimestamp()
+        }, { merge: true }),
+        linkRef.set({
+          user_id: uid,
+          plan_id: plan.id,
+          plan_name: plan.name,
+          amount: plan.priceClp,
+          currency: "CLP",
+          external_reference: externalReference,
+          preapproval_id: result.id,
+          init_point: result.init_point,
+          mp_status: result.status || "pending",
+          auto_renew: false,
+          updated_at: FieldValue.serverTimestamp()
+        }, { merge: true })
+      ]);
 
       return {
         checkoutUrl: result.init_point,
-        preferenceId: result.id || null
+        subscriptionId: result.id
       };
     } catch (error) {
-      await checkoutRef.set({
+      await requestRef.set({
         status: "error",
         updated_at: FieldValue.serverTimestamp()
       }, { merge: true });
 
-      console.error("Error creando preferencia Mercado Pago:", error?.message || error);
+      console.error("Error creando suscripción Mercado Pago:", error?.message || error);
       if (error instanceof HttpsError) throw error;
-      throw new HttpsError("internal", "No se pudo iniciar el pago.");
+      throw new HttpsError("internal", "No se pudo iniciar la suscripción.");
     }
+  }
+);
+
+exports.syncMeilanSubscription = onCall(
+  { region: REGION },
+  async request => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const uid = request.auth.uid;
+    const linkRef = db.collection("meilan_subscription_links").doc(uid);
+    const subscriptionRef = db.collection("meilan_subscriptions").doc(uid);
+    const linkSnap = await linkRef.get();
+
+    if (!linkSnap.exists || !linkSnap.data()?.preapproval_id) {
+      return { ok: true, status: "none", autoRenew: false };
+    }
+
+    const link = linkSnap.data();
+    const remote = await mercadoPagoRequest(
+      "/preapproval/" + encodeURIComponent(link.preapproval_id)
+    );
+
+    if (remote?.external_reference && remote.external_reference !== link.external_reference) {
+      throw new HttpsError("permission-denied", "La suscripción no coincide con esta cuenta.");
+    }
+
+    const mpStatus = String(remote?.status || "unknown");
+    const nextPayment = remote?.next_payment_date
+      ? Timestamp.fromDate(new Date(remote.next_payment_date))
+      : null;
+
+    await linkRef.set({
+      mp_status: mpStatus,
+      next_payment_date: nextPayment,
+      auto_renew: mpStatus === "authorized",
+      updated_at: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    const currentSnap = await subscriptionRef.get();
+    const current = currentSnap.exists ? currentSnap.data() : null;
+    const nowMs = Date.now();
+    const currentEndMs = current?.current_period_end?.toMillis
+      ? current.current_period_end.toMillis()
+      : 0;
+
+    if (mpStatus === "authorized") {
+      const update = {
+        user_id: uid,
+        plan_code: link.plan_id,
+        plan_name: link.plan_name || "Suscripción mensual",
+        status: "active",
+        subscription_mode: "recurring",
+        auto_renew: true,
+        mercado_pago_preapproval_id: link.preapproval_id,
+        mercado_pago_status: mpStatus,
+        updated_at: FieldValue.serverTimestamp()
+      };
+
+      if (nextPayment) {
+        update.current_period_end = nextPayment;
+      }
+      if (!currentSnap.exists) {
+        update.created_at = FieldValue.serverTimestamp();
+        update.current_period_start = FieldValue.serverTimestamp();
+      }
+
+      await subscriptionRef.set(update, { merge: true });
+    } else if (["canceled", "paused"].includes(mpStatus)) {
+      const keepActive = currentEndMs > nowMs;
+      await subscriptionRef.set({
+        auto_renew: false,
+        mercado_pago_status: mpStatus,
+        status: keepActive ? "active" : mpStatus,
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } else if (mpStatus === "pending") {
+      await subscriptionRef.set({
+        mercado_pago_status: mpStatus,
+        auto_renew: false,
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    return {
+      ok: true,
+      status: mpStatus,
+      autoRenew: mpStatus === "authorized",
+      nextPaymentDate: remote?.next_payment_date || null
+    };
+  }
+);
+
+exports.cancelMeilanSubscription = onCall(
+  { region: REGION },
+  async request => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const uid = request.auth.uid;
+    const linkRef = db.collection("meilan_subscription_links").doc(uid);
+    const subscriptionRef = db.collection("meilan_subscriptions").doc(uid);
+    const linkSnap = await linkRef.get();
+
+    if (!linkSnap.exists || !linkSnap.data()?.preapproval_id) {
+      throw new HttpsError("failed-precondition", "No hay una suscripción para cancelar.");
+    }
+
+    const preapprovalId = linkSnap.data().preapproval_id;
+    const remote = await mercadoPagoRequest(
+      "/preapproval/" + encodeURIComponent(preapprovalId),
+      {
+        method: "PUT",
+        body: { status: "canceled" }
+      }
+    );
+
+    await Promise.all([
+      linkRef.set({
+        mp_status: remote?.status || "canceled",
+        auto_renew: false,
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true }),
+      subscriptionRef.set({
+        auto_renew: false,
+        mercado_pago_status: remote?.status || "canceled",
+        updated_at: FieldValue.serverTimestamp()
+      }, { merge: true })
+    ]);
+
+    return { ok: true, status: remote?.status || "canceled" };
   }
 );
 
