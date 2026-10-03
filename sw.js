@@ -1,12 +1,12 @@
-const CACHE="meilan-v0.12.0";
+const CACHE="meilan-v0.12.1";
 const APP_SHELL=[
   "./",
   "./index.html",
-  "./styles.css?v=0.12.0",
-  "./data.js?v=0.12.0",
-  "./app.js?v=0.12.0",
-  "./config.js?v=0.12.0",
-  "./auth.js?v=0.12.0",
+  "./styles.css?v=0.12.1",
+  "./data.js?v=0.12.1",
+  "./app.js?v=0.12.1",
+  "./config.js?v=0.12.1",
+  "./auth.js?v=0.12.1",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
