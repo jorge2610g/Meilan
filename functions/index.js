@@ -21,6 +21,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_EMAILS = new Set(["scuentas150@gmail.com"]);
 const PRIVATE_CONFIG_PATH = "meilan_private/mercadopago";
 const PRIVATE_PLANS_PATH = "meilan_private/plans";
+const MERCADOPAGO_MIN_CLP = 950;
 
 async function isAdminAuth(auth) {
   if (!auth?.uid) return false;
@@ -49,7 +50,7 @@ function normalizePlanInput(data) {
   const type = data?.type === "trial" ? "trial" : "paid";
   const days = Math.max(1, Math.min(3650, Math.trunc(Number(data?.days || 0))));
   const rawPrice = Math.trunc(Number(data?.priceClp || 0));
-  const priceClp = type === "trial" ? 0 : Math.max(1, Math.min(100000000, rawPrice));
+  const priceClp = type === "trial" ? 0 : Math.max(0, Math.min(100000000, rawPrice));
   const sortOrder = Math.max(-100000, Math.min(100000, Math.trunc(Number(data?.sortOrder || 0))));
   const active = data?.active !== false;
 
@@ -57,8 +58,8 @@ function normalizePlanInput(data) {
   if (!Number.isFinite(days) || days < 1) {
     throw new HttpsError("invalid-argument", "La duración del plan no es válida.");
   }
-  if (type === "paid" && (!Number.isFinite(priceClp) || priceClp < 1)) {
-    throw new HttpsError("invalid-argument", "El precio del plan no es válido.");
+  if (type === "paid" && (!Number.isFinite(priceClp) || priceClp < MERCADOPAGO_MIN_CLP)) {
+    throw new HttpsError("invalid-argument", `Mercado Pago exige un mínimo de ${MERCADOPAGO_MIN_CLP.toLocaleString("es-CL")} CLP para suscripciones.`);
   }
 
   return { name, description, type, days, priceClp, sortOrder, active };
@@ -348,6 +349,9 @@ exports.createMeilanCheckout = onCall(
     const plan = serializePlan(planSnap);
     if (!plan.active || plan.type !== "paid") {
       throw new HttpsError("failed-precondition", "Ese plan no está disponible para suscripción.");
+    }
+    if (Number(plan.priceClp) < MERCADOPAGO_MIN_CLP) {
+      throw new HttpsError("failed-precondition", `Mercado Pago exige un mínimo de ${MERCADOPAGO_MIN_CLP.toLocaleString("es-CL")} CLP para suscripciones. Edita el plan antes de continuar.`);
     }
 
     const linkRef = db.collection("meilan_subscription_links").doc(uid);
