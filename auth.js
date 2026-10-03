@@ -36,6 +36,9 @@
     currentPlanName: $("currentPlanName"),
     currentPlanEndsText: $("currentPlanEndsText"),
     subscriptionCountdown: $("subscriptionCountdown"),
+    subscriptionCountdownLabel: $("subscriptionCountdownLabel"),
+    recurringSubscriptionState: $("recurringSubscriptionState"),
+    cancelSubscriptionBtn: $("cancelSubscriptionBtn"),
     planCatalog: $("planCatalog"),
     planCatalogEmpty: $("planCatalogEmpty"),
 
@@ -48,6 +51,7 @@
     planName: $("planName"),
     planType: $("planType"),
     planDays: $("planDays"),
+    planDaysLabel: $("planDaysLabel"),
     planPrice: $("planPrice"),
     planSortOrder: $("planSortOrder"),
     planActive: $("planActive"),
@@ -336,6 +340,10 @@
   function renderCurrentAccess(){
     const e = entitlement();
     const show = Boolean(e.active && e.end);
+    const recurring = Boolean(
+      state.subscription?.subscription_mode === "recurring" &&
+      state.subscription?.auto_renew === true
+    );
 
     if(els.subscriptionActiveState) els.subscriptionActiveState.hidden = !show;
     if(show){
@@ -343,8 +351,22 @@
         || (e.kind === "trial" ? "Prueba gratis" : "Plan Meilan");
       if(els.currentPlanName) els.currentPlanName.textContent = planName;
       if(els.currentPlanEndsText){
-        els.currentPlanEndsText.textContent = "Tu acceso termina el " + formatDate(e.end) + ".";
+        els.currentPlanEndsText.textContent = recurring
+          ? "Próximo cobro: " + formatDate(e.end) + "."
+          : "Tu acceso termina el " + formatDate(e.end) + ".";
       }
+    }
+
+    if(els.subscriptionCountdownLabel){
+      els.subscriptionCountdownLabel.textContent = recurring
+        ? "Tiempo hasta la próxima renovación"
+        : "Tiempo restante";
+    }
+    if(els.recurringSubscriptionState){
+      els.recurringSubscriptionState.hidden = !recurring;
+    }
+    if(els.cancelSubscriptionBtn){
+      els.cancelSubscriptionBtn.disabled = state.busy || !recurring;
     }
     updateCountdown();
   }
@@ -383,7 +405,9 @@
       price.textContent = priceText(plan);
 
       const duration = document.createElement("span");
-      duration.textContent = Number(plan.days) + (Number(plan.days) === 1 ? " día" : " días");
+      duration.textContent = plan.type === "trial"
+        ? Number(plan.days) + (Number(plan.days) === 1 ? " día" : " días")
+        : "por mes";
 
       priceRow.append(price, duration);
 
@@ -405,20 +429,22 @@
         button.disabled = state.busy || unavailable;
         button.addEventListener("click", () => startTrial(plan.id));
       }else{
-        button.textContent = e.active
-          ? "Agregar " + plan.days + " días"
-          : "Pagar con Mercado Pago";
-        button.dataset.permanentDisabled = billing.mercadoPagoEnabled ? "0" : "1";
-        button.disabled = state.busy || !billing.mercadoPagoEnabled;
+        const recurringActive = Boolean(
+          state.subscription?.subscription_mode === "recurring" &&
+          state.subscription?.auto_renew === true
+        );
+        button.textContent = recurringActive
+          ? "Suscripción mensual activa"
+          : "Suscribirme por " + priceText(plan) + "/mes";
+        button.dataset.permanentDisabled = billing.mercadoPagoEnabled && !recurringActive ? "0" : "1";
+        button.disabled = state.busy || !billing.mercadoPagoEnabled || recurringActive;
         button.addEventListener("click", () => buyPlan(plan.id));
       }
 
       const note = document.createElement("small");
       note.textContent = plan.type === "trial"
         ? "Una prueba gratis por cuenta."
-        : (e.active
-          ? "La compra se suma al final de tu acceso actual."
-          : "Pago único. No se renueva automáticamente.");
+        : "Renovación automática mensual. Puedes cancelar la renovación desde tu cuenta.";
 
       card.append(kicker, title, priceRow, description, button, note);
       els.planCatalog.appendChild(card);
@@ -533,6 +559,18 @@
     }
   }
 
+  async function syncSubscriptionWithBackend(){
+    if(!state.functions || !state.user || state.adminSession || !state.api) return null;
+    try{
+      const sync = state.api.httpsCallable(state.functions, "syncMeilanSubscription");
+      const result = await sync({});
+      return result?.data || null;
+    }catch(error){
+      console.warn("No se pudo sincronizar la suscripción mensual:", error);
+      return null;
+    }
+  }
+
   async function loadPlans(){
     state.plans = [];
     if(!state.functions || !state.user || !state.api) return;
@@ -598,6 +636,7 @@
         state.subscription = null;
         state.plans = [];
       }else{
+        await syncSubscriptionWithBackend();
         await Promise.all([loadSubscription(), loadPlans()]);
       }
     }
@@ -726,14 +765,14 @@
 
     let leavingForCheckout = false;
     setBusy(true);
-    setMessage("Abriendo Mercado Pago…");
+    setMessage("Abriendo suscripción mensual en Mercado Pago…");
 
     try{
       const createCheckout = state.api.httpsCallable(state.functions, "createMeilanCheckout");
       const result = await createCheckout({planId});
       const checkoutUrl = result?.data?.checkoutUrl;
 
-      if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de pago.");
+      if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de suscripción.");
 
       leavingForCheckout = true;
       sessionStorage.setItem("meilan_checkout_outbound", "1");
@@ -741,12 +780,35 @@
     }catch(error){
       console.error("No se pudo abrir Mercado Pago:", error);
       sessionStorage.removeItem("meilan_checkout_outbound");
-      setMessage(friendlyError(error, "No se pudo iniciar el pago con Mercado Pago."), "error");
+      setMessage(friendlyError(error, "No se pudo iniciar la suscripción con Mercado Pago."), "error");
     }finally{
       if(!leavingForCheckout){
         setBusy(false);
         renderPlanCatalog();
       }
+    }
+  }
+
+  async function cancelMonthlySubscription(){
+    if(!state.user || !state.functions || state.busy || !state.api) return;
+    if(!window.confirm("¿Cancelar la renovación mensual automática? Mantendrás el acceso ya pagado hasta su fecha de término.")) return;
+
+    setBusy(true);
+    setMessage("Cancelando renovación mensual…");
+
+    try{
+      const cancel = state.api.httpsCallable(state.functions, "cancelMeilanSubscription");
+      await cancel({});
+      await syncSubscriptionWithBackend();
+      await loadSubscription();
+      render();
+      setMessage("Renovación mensual cancelada. Tu acceso pagado se mantiene hasta su fecha de término.", "success");
+    }catch(error){
+      console.error("No se pudo cancelar la suscripción:", error);
+      setMessage(friendlyError(error, "No se pudo cancelar la renovación."), "error");
+    }finally{
+      setBusy(false);
+      render();
     }
   }
 
@@ -772,6 +834,15 @@
       els.planPrice.disabled = trial;
       if(trial) els.planPrice.value = "0";
       else if(Number(els.planPrice.value) < 1) els.planPrice.value = "3000";
+    }
+    if(els.planDays){
+      els.planDays.disabled = !trial;
+      if(!trial) els.planDays.value = "30";
+    }
+    if(els.planDaysLabel){
+      els.planDaysLabel.textContent = trial
+        ? "Duración de prueba (días)"
+        : "Ciclo mensual automático";
     }
   }
 
@@ -914,28 +985,40 @@
 
   function handlePaymentReturn(){
     const params = new URLSearchParams(window.location.search);
+    const subscriptionReturn = params.get("subscription");
     const payment = params.get("payment");
-    if(!payment) return;
+    if(!subscriptionReturn && !payment) return;
 
     openModal();
+    sessionStorage.removeItem("meilan_checkout_outbound");
 
-    if(payment === "success"){
-      setMessage("Pago recibido. Estamos confirmándolo con Mercado Pago; el tiempo comprado se sumará a tu acceso.", "success");
-
-      [1800, 4500, 9000].forEach(delay => {
+    if(subscriptionReturn === "return"){
+      setMessage("Verificando tu suscripción mensual con Mercado Pago…", "info");
+      [500, 2000, 5000].forEach(delay => {
         setTimeout(async () => {
           if(!state.user || state.adminSession) return;
+          const synced = await syncSubscriptionWithBackend();
           await loadSubscription();
           render();
+          if(synced?.status === "authorized"){
+            setMessage("Suscripción mensual activa. Mercado Pago renovará el cobro automáticamente cada mes.", "success");
+          }else if(synced?.status === "pending"){
+            setMessage("La suscripción todavía está pendiente de autorización en Mercado Pago.", "warning");
+          }
         }, delay);
       });
+      params.delete("subscription");
+    }else if(payment === "success"){
+      setMessage("Pago anterior recibido. Estamos confirmándolo con Mercado Pago.", "success");
+      params.delete("payment");
     }else if(payment === "pending"){
-      setMessage("El pago quedó pendiente. El acceso se actualizará cuando Mercado Pago lo apruebe.", "warning");
+      setMessage("El pago quedó pendiente.", "warning");
+      params.delete("payment");
     }else if(payment === "failure"){
-      setMessage("El pago no se completó. Puedes intentarlo nuevamente.", "error");
+      setMessage("El pago no se completó.", "error");
+      params.delete("payment");
     }
 
-    params.delete("payment");
     const rest = params.toString();
     history.replaceState({}, "", window.location.pathname + (rest ? "?" + rest : "") + window.location.hash);
   }
@@ -951,6 +1034,7 @@
     els.userRoleBtn?.addEventListener("click", () => setLoginMode("user"));
     els.adminRoleBtn?.addEventListener("click", () => setLoginMode("admin"));
     els.saveMpCredentialsBtn?.addEventListener("click", saveMercadoPagoCredentials);
+    els.cancelSubscriptionBtn?.addEventListener("click", cancelMonthlySubscription);
     els.savePlanBtn?.addEventListener("click", savePlan);
     els.cancelPlanEditBtn?.addEventListener("click", resetPlanEditor);
     els.planType?.addEventListener("change", syncPlanType);
