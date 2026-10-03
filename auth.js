@@ -964,7 +964,7 @@
 
   async function resetCheckoutUiOnReturn(){
     const params = new URLSearchParams(window.location.search);
-    if(params.get("payment")) return;
+    if(params.get("payment") || params.get("subscription")) return;
 
     const returningFromCheckout = sessionStorage.getItem("meilan_checkout_outbound") === "1";
     if(!returningFromCheckout) return;
@@ -972,11 +972,12 @@
     sessionStorage.removeItem("meilan_checkout_outbound");
     state.busy = false;
 
-    if(els.message?.textContent?.includes("Abriendo Mercado Pago")){
-      setMessage("");
-    }
+    // Al volver con el botón Atrás, Chrome/Android puede restaurar el DOM tal como
+    // estaba antes de salir. Limpiamos siempre el mensaje de salida al checkout.
+    setMessage("");
 
     if(state.user && !state.adminSession){
+      await syncSubscriptionWithBackend();
       await loadSubscription();
     }
 
