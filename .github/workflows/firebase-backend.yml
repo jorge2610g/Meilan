@@ -40,4 +40,4 @@ jobs:
         run: npm install --omit=dev
 
       - name: Deploy Functions and Firestore rules
-        run: npx firebase-tools@latest deploy --only functions,firestore:rules --project meilan-95042 --non-interactive
+        run: npx firebase-tools@latest deploy --only functions,firestore:rules --project meilan-95042 --non-interactive --force
