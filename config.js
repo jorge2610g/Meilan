@@ -15,7 +15,7 @@ window.MEILAN_CONFIG = {
   // Cuenta administradora principal de Meilan.
   adminEmails: ["scuentas150@gmail.com"],
 
-  // Se activará cuando el backend de Mercado Pago quede desplegado.
+  // Se mantiene desactivado durante la primera prueba de pago.
   requireActiveSubscription: false,
 
   billing: {
@@ -24,8 +24,8 @@ window.MEILAN_CONFIG = {
     planPriceClp: 3000,
     functionsRegion: "southamerica-west1",
 
-    // Se activan después de desplegar las Cloud Functions.
-    mercadoPagoEnabled: false,
-    adminCredentialSaveEnabled: false
+    // Backend de Mercado Pago desplegado y disponible.
+    mercadoPagoEnabled: true,
+    adminCredentialSaveEnabled: true
   }
 };
