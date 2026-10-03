@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.9.1">
+  <link rel="stylesheet" href="styles.css?v=0.10.0">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.9.1</span>
+    <span class="version">v0.10.0</span>
   </div>
 </header>
 
@@ -339,7 +339,7 @@
           <h3>Configuración de Mercado Pago</h3>
           <p>Esta pantalla solo está disponible para cuentas administradoras.</p>
         </div>
-        <span id="mpCredentialStatus" class="status-badge soon">Pendiente de desplegar backend seguro</span>
+        <span id="mpCredentialStatus" class="status-badge soon">Backend seguro pendiente</span>
       </div>
 
       <div class="account-user-row admin-user-row">
@@ -354,21 +354,16 @@
       </div>
 
       <div class="admin-secret-box">
-        <strong>Credenciales privadas de Mercado Pago</strong>
-        <p class="helper">Los valores se enviarán al backend seguro y se guardarán en Google Secret Manager. Nunca deben quedar en el código público ni en Firestore.</p>
+        <strong>Credencial privada de Mercado Pago</strong>
+        <p class="helper">El Access Token se enviará únicamente al backend seguro. No se guardará en GitHub, en Firestore ni en el navegador.</p>
 
         <label class="field">
           <span>Access Token</span>
           <input id="mpAccessToken" type="password" autocomplete="off" placeholder="APP_USR-...">
         </label>
 
-        <label class="field">
-          <span>Secreto del webhook</span>
-          <input id="mpWebhookSecret" type="password" autocomplete="off" placeholder="Webhook secret">
-        </label>
-
-        <button id="saveMpCredentialsBtn" class="btn primary wide" type="button" disabled>Guardar credenciales de forma segura</button>
-        <p class="helper">El botón se habilitará después de desplegar la función segura de Firebase y otorgarle acceso a Secret Manager.</p>
+        <button id="saveMpCredentialsBtn" class="btn primary wide" type="button" disabled>Guardar Access Token de forma segura</button>
+        <p class="helper">El botón se habilita cuando el backend seguro de pagos está conectado.</p>
       </div>
     </div>
   </div>
@@ -376,9 +371,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.9.1"></script>
-<script src="auth.js?v=0.9.1"></script>
-<script src="data.js?v=0.9.1"></script>
-<script src="app.js?v=0.9.1"></script>
+<script src="config.js?v=0.10.0"></script>
+<script src="auth.js?v=0.10.0"></script>
+<script src="data.js?v=0.10.0"></script>
+<script src="app.js?v=0.10.0"></script>
 </body>
 </html>
