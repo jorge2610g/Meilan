@@ -12,6 +12,9 @@ window.MEILAN_CONFIG = {
   requireLogin: true,
   requireVerifiedEmail: false,
 
+  // Cuenta administradora principal de Meilan.
+  adminEmails: ["scuentas150@gmail.com"],
+
   // Se activará cuando el backend de Mercado Pago quede desplegado.
   requireActiveSubscription: false,
 
