@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.10.2">
+  <link rel="stylesheet" href="styles.css?v=0.11.0">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.10.2</span>
+    <span class="version">v0.11.0</span>
   </div>
 </header>
 
@@ -291,44 +291,29 @@
         <div class="subscription-head">
           <div>
             <span class="section-kicker">ACCESO MEILAN</span>
-            <h3>Tu plan</h3>
+            <h3>Planes y suscripción</h3>
           </div>
-          <span id="subscriptionStatus" class="status-badge soon">Prueba disponible</span>
+          <span id="subscriptionStatus" class="status-badge soon">Cargando planes…</span>
         </div>
 
-        <div id="trialOffer" class="plan-offer trial-offer">
-          <span class="plan-kicker">PRUEBA GRATIS</span>
-          <div class="plan-price-row">
-            <strong>7 días</strong>
-            <span>$0</span>
+        <div id="subscriptionActiveState" class="plan-state active-plan" hidden>
+          <span class="plan-kicker">TU ACCESO ACTUAL</span>
+          <strong id="currentPlanName">—</strong>
+          <p id="currentPlanEndsText">—</p>
+          <div class="subscription-countdown" aria-live="polite">
+            <span>Tiempo restante</span>
+            <strong id="subscriptionCountdown">—</strong>
           </div>
-          <p>Prueba todas las funciones de Meilan sin costo durante 7 días.</p>
-          <button id="startTrialBtn" class="btn primary wide" type="button">Comenzar prueba gratis</button>
-          <small>Una prueba gratis por cuenta.</small>
         </div>
 
-        <div id="trialActive" class="plan-state trial-active" hidden>
-          <span class="plan-kicker">PRUEBA GRATIS ACTIVA</span>
-          <strong>Estás probando Meilan por 7 días</strong>
-          <p id="trialEndsText">—</p>
-        </div>
-
-        <div id="paidPlanOffer" class="plan-offer paid-offer" hidden>
-          <span class="plan-kicker">PLAN 30 DÍAS</span>
-          <div class="plan-price-row">
-            <strong id="planPriceText">$3.000 CLP</strong>
-            <span>30 días</span>
+        <div class="plan-catalog-head">
+          <div>
+            <strong>Planes disponibles</strong>
+            <p>La prueba gratis y los planes pagados pueden mostrarse al mismo tiempo. Comprar otro plan suma sus días al acceso vigente.</p>
           </div>
-          <p>Pago único por 30 días de acceso. No se renueva automáticamente.</p>
-          <button id="buyPlanBtn" class="btn primary wide" type="button">Pagar con Mercado Pago</button>
-          <small id="paymentSetupNote">Mercado Pago está preparado; falta cargar las credenciales y desplegar el backend.</small>
         </div>
-
-        <div id="activePlan" class="plan-state active-plan" hidden>
-          <span class="plan-kicker">PLAN ACTIVO</span>
-          <strong>Plan de 30 días</strong>
-          <p id="planEndsText">—</p>
-        </div>
+        <div id="planCatalog" class="plan-catalog"></div>
+        <div id="planCatalogEmpty" class="history-empty" hidden>No hay planes disponibles en este momento.</div>
       </div>
     </div>
 
@@ -336,8 +321,8 @@
       <div class="admin-head">
         <div>
           <span class="section-kicker">ADMINISTRADOR</span>
-          <h3>Configuración de Mercado Pago</h3>
-          <p>Esta pantalla solo está disponible para cuentas administradoras.</p>
+          <h3>Planes y Mercado Pago</h3>
+          <p>El acceso administrador está separado del acceso normal de usuario.</p>
         </div>
         <span id="mpCredentialStatus" class="status-badge soon">Backend seguro pendiente</span>
       </div>
@@ -348,14 +333,73 @@
           <strong id="adminSignedEmail">—</strong>
         </div>
         <div class="account-user-actions">
-          <button id="adminToUserBtn" class="btn secondary small" type="button">Vista usuario</button>
-          <button id="adminLogoutBtn" class="btn ghost small" type="button">Cerrar sesión</button>
+          <button id="adminLogoutBtn" class="btn ghost small" type="button">Cerrar administración</button>
         </div>
+      </div>
+
+      <div class="admin-plan-box">
+        <div class="admin-plan-head">
+          <div>
+            <strong id="planEditorTitle">Crear plan</strong>
+            <p class="helper">Crea, edita, activa, desactiva o elimina planes. Los cambios se reflejan en la app de usuario.</p>
+          </div>
+          <button id="cancelPlanEditBtn" class="btn ghost small" type="button" hidden>Cancelar edición</button>
+        </div>
+
+        <input id="planId" type="hidden">
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Nombre del plan</span>
+            <input id="planName" type="text" maxlength="80" placeholder="Ej. Plan 30 días">
+          </label>
+
+          <label class="field">
+            <span>Tipo</span>
+            <select id="planType">
+              <option value="paid">Plan pagado</option>
+              <option value="trial">Prueba gratis</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Duración (días)</span>
+            <input id="planDays" type="number" min="1" max="3650" step="1" value="30">
+          </label>
+
+          <label class="field">
+            <span>Precio CLP</span>
+            <input id="planPrice" type="number" min="0" step="1" value="3000">
+          </label>
+
+          <label class="field">
+            <span>Orden</span>
+            <input id="planSortOrder" type="number" step="1" value="20">
+          </label>
+
+          <label class="plan-active-toggle">
+            <input id="planActive" type="checkbox" checked>
+            <span>Plan visible y disponible</span>
+          </label>
+
+          <label class="field span-2">
+            <span>Descripción</span>
+            <textarea id="planDescription" rows="3" maxlength="240" placeholder="Descripción que verá el usuario"></textarea>
+          </label>
+        </div>
+
+        <button id="savePlanBtn" class="btn primary wide" type="button">Guardar plan</button>
+
+        <div class="admin-plan-list-head">
+          <strong>Planes configurados</strong>
+          <span id="adminPlanCount" class="status-badge neutral">0</span>
+        </div>
+        <div id="adminPlansList" class="admin-plans-list"></div>
       </div>
 
       <div class="admin-secret-box">
         <strong>Credencial privada de Mercado Pago</strong>
-        <p class="helper">El Access Token se enviará únicamente al backend de Firebase y no quedará expuesto en GitHub ni en el navegador.</p>
+        <p class="helper">El Access Token se envía únicamente al backend de Firebase y no queda expuesto en GitHub ni en el navegador.</p>
 
         <label class="field">
           <span>Access Token</span>
@@ -363,7 +407,7 @@
         </label>
 
         <button id="saveMpCredentialsBtn" class="btn primary wide" type="button" disabled>Guardar Access Token de forma segura</button>
-        <p class="helper">El botón se habilita cuando las Cloud Functions de pago estén desplegadas.</p>
+        <p class="helper">El botón se habilita cuando las Cloud Functions de pago están desplegadas.</p>
       </div>
     </div>
   </div>
@@ -371,9 +415,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.10.2"></script>
-<script src="auth.js?v=0.10.2"></script>
-<script src="data.js?v=0.10.2"></script>
-<script src="app.js?v=0.10.2"></script>
+<script src="config.js?v=0.11.0"></script>
+<script src="auth.js?v=0.11.0"></script>
+<script src="data.js?v=0.11.0"></script>
+<script src="app.js?v=0.11.0"></script>
 </body>
 </html>
