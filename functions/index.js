@@ -347,12 +347,27 @@ exports.createMeilanCheckout = onCall(
         if (remote?.status === "authorized") {
           throw new HttpsError("failed-precondition", "Ya tienes una suscripción mensual activa.");
         }
-        if (remote?.status === "pending" && existing.init_point) {
+
+        const samePlan = String(existing.plan_id || "") === String(plan.id);
+        const sameAmount = Number(existing.amount) === Number(plan.priceClp);
+
+        if (remote?.status === "pending" && existing.init_point && samePlan && sameAmount) {
           return {
             checkoutUrl: existing.init_point,
             subscriptionId: existing.preapproval_id,
             reused: true
           };
+        }
+
+        if (remote?.status === "pending" && (!samePlan || !sameAmount)) {
+          try {
+            await mercadoPagoRequest("/preapproval/" + encodeURIComponent(existing.preapproval_id), {
+              method: "PUT",
+              body: { status: "cancelled" }
+            });
+          } catch (cancelError) {
+            console.warn("No se pudo cancelar el checkout pendiente anterior:", cancelError?.message || cancelError);
+          }
         }
       } catch (error) {
         if (error instanceof HttpsError && error.code === "failed-precondition") throw error;
