@@ -24,14 +24,18 @@ const SITE_URL = "https://jorge2610g.github.io/Meilan/";
 const PLAN_PRICE_CLP = 3000;
 const PLAN_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ADMIN_EMAILS = new Set(["scuentas150@gmail.com"]);
 
 const ACCESS_TOKEN_SECRET = "MERCADOPAGO_ACCESS_TOKEN";
 const WEBHOOK_SECRET = "MERCADOPAGO_WEBHOOK_SECRET";
 
-async function requireAdmin(uid) {
-  if (!uid) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+async function requireAdmin(auth) {
+  if (!auth?.uid) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
 
-  const snap = await db.collection("meilan_admins").doc(uid).get();
+  const email = String(auth.token?.email || "").trim().toLowerCase();
+  if (email && ADMIN_EMAILS.has(email)) return;
+
+  const snap = await db.collection("meilan_admins").doc(auth.uid).get();
   if (!snap.exists || snap.data()?.active !== true) {
     throw new HttpsError("permission-denied", "No tienes acceso de administrador.");
   }
@@ -90,7 +94,7 @@ function webhookUrl() {
 exports.saveMercadoPagoCredentials = onCall(
   { region: REGION },
   async request => {
-    await requireAdmin(request.auth?.uid);
+    await requireAdmin(request.auth);
 
     const accessToken = String(request.data?.accessToken || "").trim();
     const webhookSecret = String(request.data?.webhookSecret || "").trim();
