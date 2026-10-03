@@ -10,10 +10,14 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js">
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="dns-prefetch" href="//identitytoolkit.googleapis.com">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.12.4">
+  <link rel="stylesheet" href="styles.css?v=0.12.5">
 </head>
 <body>
 <header class="topbar">
@@ -28,7 +32,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.12.4</span>
+    <span class="version">v0.12.5</span>
   </div>
 </header>
 
@@ -422,9 +426,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.12.4"></script>
-<script src="auth.js?v=0.12.4"></script>
-<script src="data.js?v=0.12.4"></script>
-<script src="app.js?v=0.12.4"></script>
+<script src="config.js?v=0.12.5"></script>
+<script src="auth.js?v=0.12.5"></script>
+<script src="data.js?v=0.12.5"></script>
+<script src="app.js?v=0.12.5"></script>
 </body>
 </html>
