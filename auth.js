@@ -724,6 +724,7 @@
       return;
     }
 
+    let leavingForCheckout = false;
     setBusy(true);
     setMessage("Abriendo Mercado Pago…");
 
@@ -733,13 +734,19 @@
       const checkoutUrl = result?.data?.checkoutUrl;
 
       if(!checkoutUrl) throw new Error("Mercado Pago no devolvió una URL de pago.");
+
+      leavingForCheckout = true;
+      sessionStorage.setItem("meilan_checkout_outbound", "1");
       window.location.assign(checkoutUrl);
     }catch(error){
       console.error("No se pudo abrir Mercado Pago:", error);
+      sessionStorage.removeItem("meilan_checkout_outbound");
       setMessage(friendlyError(error, "No se pudo iniciar el pago con Mercado Pago."), "error");
     }finally{
-      setBusy(false);
-      renderPlanCatalog();
+      if(!leavingForCheckout){
+        setBusy(false);
+        renderPlanCatalog();
+      }
     }
   }
 
@@ -884,6 +891,27 @@
     }
   }
 
+  async function resetCheckoutUiOnReturn(){
+    const params = new URLSearchParams(window.location.search);
+    if(params.get("payment")) return;
+
+    const returningFromCheckout = sessionStorage.getItem("meilan_checkout_outbound") === "1";
+    if(!returningFromCheckout) return;
+
+    sessionStorage.removeItem("meilan_checkout_outbound");
+    state.busy = false;
+
+    if(els.message?.textContent?.includes("Abriendo Mercado Pago")){
+      setMessage("");
+    }
+
+    if(state.user && !state.adminSession){
+      await loadSubscription();
+    }
+
+    render();
+  }
+
   function handlePaymentReturn(){
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
@@ -929,6 +957,19 @@
 
     els.modal?.addEventListener("click", event => {
       if(event.target === els.modal) closeModal();
+    });
+
+    window.addEventListener("pageshow", () => {
+      resetCheckoutUiOnReturn().catch(error => {
+        console.warn("No se pudo limpiar el regreso desde Mercado Pago:", error);
+      });
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if(document.visibilityState !== "visible") return;
+      resetCheckoutUiOnReturn().catch(error => {
+        console.warn("No se pudo actualizar el regreso desde Mercado Pago:", error);
+      });
     });
 
     setLoginMode("user");
