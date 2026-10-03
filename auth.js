@@ -879,8 +879,8 @@
       setMessage("Completa el nombre y una duración válida.", "error");
       return;
     }
-    if(payload.type === "paid" && (!Number.isInteger(payload.priceClp) || payload.priceClp < 1)){
-      setMessage("El plan pagado necesita un precio válido.", "error");
+    if(payload.type === "paid" && (!Number.isInteger(payload.priceClp) || payload.priceClp < 950)){
+      setMessage("Mercado Pago exige un mínimo de $950 CLP para suscripciones.", "error");
       return;
     }
 
