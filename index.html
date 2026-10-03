@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.11.1">
+  <link rel="stylesheet" href="styles.css?v=0.12.0">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.11.1</span>
+    <span class="version">v0.12.0</span>
   </div>
 </header>
 
@@ -301,8 +301,12 @@
           <strong id="currentPlanName">—</strong>
           <p id="currentPlanEndsText">—</p>
           <div class="subscription-countdown" aria-live="polite">
-            <span>Tiempo restante</span>
+            <span id="subscriptionCountdownLabel">Tiempo restante</span>
             <strong id="subscriptionCountdown">—</strong>
+          </div>
+          <div id="recurringSubscriptionState" class="recurring-subscription-state" hidden>
+            <span class="status-badge ok">Renovación mensual automática</span>
+            <button id="cancelSubscriptionBtn" class="btn ghost small danger-action" type="button">Cancelar renovación</button>
           </div>
         </div>
 
@@ -357,18 +361,18 @@
           <label class="field">
             <span>Tipo</span>
             <select id="planType">
-              <option value="paid">Plan pagado</option>
+              <option value="paid">Suscripción mensual</option>
               <option value="trial">Prueba gratis</option>
             </select>
           </label>
 
           <label class="field">
-            <span>Duración (días)</span>
+            <span id="planDaysLabel">Duración de prueba (días)</span>
             <input id="planDays" type="number" min="1" max="3650" step="1" value="30">
           </label>
 
           <label class="field">
-            <span>Precio CLP</span>
+            <span>Precio mensual CLP</span>
             <input id="planPrice" type="number" min="0" step="1" value="3000">
           </label>
 
@@ -415,9 +419,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.11.1"></script>
-<script src="auth.js?v=0.11.1"></script>
-<script src="data.js?v=0.11.1"></script>
-<script src="app.js?v=0.11.1"></script>
+<script src="config.js?v=0.12.0"></script>
+<script src="auth.js?v=0.12.0"></script>
+<script src="data.js?v=0.12.0"></script>
+<script src="app.js?v=0.12.0"></script>
 </body>
 </html>
