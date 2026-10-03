@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Meilan">
   <title>Meilan · Vida útil</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=0.10.0">
+  <link rel="stylesheet" href="styles.css?v=0.10.1">
 </head>
 <body>
 <header class="topbar">
@@ -25,7 +25,7 @@
     <button id="installPwaBtn" class="btn install-btn">Instalar</button>
     <button id="accountBtn" class="btn account-btn" type="button">Acceder</button>
     <a id="openPwaBtn" class="btn install-btn" href="./?launch=pwa" target="_blank" rel="noopener" hidden>Abrir app</a>
-    <span class="version">v0.10.0</span>
+    <span class="version">v0.10.1</span>
   </div>
 </header>
 
@@ -355,7 +355,7 @@
 
       <div class="admin-secret-box">
         <strong>Credencial privada de Mercado Pago</strong>
-        <p class="helper">El Access Token se enviará únicamente al backend seguro. No se guardará en GitHub, en Firestore ni en el navegador.</p>
+        <p class="helper">El Access Token se enviará únicamente al backend de Firebase y no quedará expuesto en GitHub ni en el navegador.</p>
 
         <label class="field">
           <span>Access Token</span>
@@ -363,7 +363,7 @@
         </label>
 
         <button id="saveMpCredentialsBtn" class="btn primary wide" type="button" disabled>Guardar Access Token de forma segura</button>
-        <p class="helper">El botón se habilita cuando el backend seguro de pagos está conectado.</p>
+        <p class="helper">El botón se habilita cuando las Cloud Functions de pago estén desplegadas.</p>
       </div>
     </div>
   </div>
@@ -371,9 +371,9 @@
 
 <footer>Base: Tabla de vida útil de productos en tienda · Chile · actualización 28 de julio de 2026.</footer>
 
-<script src="config.js?v=0.10.0"></script>
-<script src="auth.js?v=0.10.0"></script>
-<script src="data.js?v=0.10.0"></script>
-<script src="app.js?v=0.10.0"></script>
+<script src="config.js?v=0.10.1"></script>
+<script src="auth.js?v=0.10.1"></script>
+<script src="data.js?v=0.10.1"></script>
+<script src="app.js?v=0.10.1"></script>
 </body>
 </html>
